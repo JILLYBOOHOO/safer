@@ -1,0 +1,230 @@
+.feature-pane {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #0a0f18 0%, #05080f 100%);
+}
+
+.feature-card {
+  width: 100%;
+  max-width: 500px;
+  padding: 30px;
+}
+
+.glass-panel {
+  background: rgba(16, 25, 40, 0.6);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.header-banner {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.neon-icon {
+  font-size: 48px;
+  color: #00f0ff;
+  text-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+  margin-bottom: 10px;
+}
+
+.form-title {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.5px;
+}
+
+.form-subtitle {
+  color: #a0c0e0;
+  font-size: 14px;
+  margin: 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.form-group label {
+  color: #c0d8f0;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.optional {
+  color: #5b7a99;
+  font-weight: normal;
+  font-size: 11px;
+}
+
+.input-accessible {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(0, 240, 255, 0.1);
+  color: #ffffff;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input-accessible:focus {
+  outline: none;
+  border-color: #00f0ff;
+  box-shadow: 0 0 0 4px rgba(0, 240, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.input-accessible::placeholder {
+  color: rgba(160, 192, 224, 0.4);
+}
+
+textarea.input-accessible {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* File Upload Button */
+.file-upload-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.file-input-hidden {
+  opacity: 0;
+  width: 0.1px;
+  height: 0.1px;
+  position: absolute;
+}
+
+.file-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 240, 255, 0.05);
+  border: 2px dashed rgba(0, 240, 255, 0.3);
+  color: #00f0ff;
+  padding: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.file-upload-btn:hover {
+  background: rgba(0, 240, 255, 0.1);
+  border-color: #00f0ff;
+}
+
+.file-upload-btn .material-icons {
+  font-size: 20px;
+}
+
+.btn-electric-blue {
+  background: linear-gradient(135deg, #00d2ff 0%, #0088ff 100%);
+  color: #ffffff;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 136, 255, 0.3);
+}
+
+.btn-electric-blue:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 136, 255, 0.4);
+  background: linear-gradient(135deg, #1ae0ff 0%, #1a99ff 100%);
+}
+
+.btn-electric-blue:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.submit-btn {
+  margin-top: 10px;
+}
+
+.status-message {
+  text-align: center;
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status-message.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-message.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Progress bar */
+.upload-progress-container {
+  margin: 10px 0 20px 0;
+}
+
+.progress-bar-bg {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #00f0ff;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px #00f0ff;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #a0c0e0;
+  display: block;
+  text-align: right;
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,61 @@
+<aside class="app-sidebar glass-panel" *ngIf="!isLoginRoute">
+  <div class="sidebar-header">
+    <a routerLink="/" class="logo-link">🛡️ Safer</a>
+  </div>
+
+  <div class="user-profile-summary" *ngIf="user">
+    <div class="avatar">{{ user.name.charAt(0) }}</div>
+    <div class="user-details">
+      <span class="user-name">{{ user.name }}</span>
+      <span class="user-role" [class.admin-role]="isAdmin">{{ user.role }}</span>
+    </div>
+  </div>
+
+  <nav class="nav-links">
+    <a routerLink="/dashboard" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">🏠</span> <span class="nav-text">Dashboard</span>
+    </a>
+    <a routerLink="/fake-call" routerLinkActive="active-link" class="nav-item" style="color: #f87171;">
+      <span class="nav-icon">📱</span> <span class="nav-text">Fake Call</span>
+    </a>
+
+
+    <a routerLink="/bestie-chat" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">🤖</span> <span class="nav-text">Virtual Agent</span>
+    </a>
+
+    <a routerLink="/incidents" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">🗂️</span> <span class="nav-text">Evidence Locker</span>
+    </a>
+
+    <a routerLink="/locations" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">📍</span> <span class="nav-text">Location Profiles</span>
+    </a>
+
+    <a routerLink="/dashboard" [queryParams]="{tab: 'medical'}" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">🗄️</span> <span class="nav-text">Offline Vault</span>
+    </a>
+
+    <a routerLink="/feature-suggestion" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">💡</span> <span class="nav-text">Suggest Feature</span>
+    </a>
+
+    <a routerLink="/contact" routerLinkActive="active-link" class="nav-item">
+      <span class="nav-icon">🎫</span> <span class="nav-text">Support Ticket</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="theme-toggle">
+      <label for="theme-select" class="sr-only">Theme</label>
+      <select id="theme-select" #themeSelect (change)="onThemeChange(themeSelect.value)" [value]="themeService.getTheme()" class="input-accessible">
+        <option value="light">☀️ Light Theme</option>
+        <option value="dark">🌙 Dark Theme</option>
+      </select>
+    </div>
+    
+    <button *ngIf="securityService.isLoggedIn()" class="btn-accessible btn-danger signout-btn" (click)="logout()">
+      Sign Out
+    </button>
+  </div>
+</aside>

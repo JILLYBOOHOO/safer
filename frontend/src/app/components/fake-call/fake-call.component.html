@@ -1,0 +1,12 @@
+<div class="fake-call">
+  <div class="incoming">
+    <p class="caller">Unknown Caller</p>
+    <audio #ringtone autoplay loop>
+      <source src="/assets/ringtones/office.mp3" type="audio/mpeg" />
+    </audio>
+    <div class="actions">
+      <button class="answer" (click)="answer()">Answer</button>
+      <button class="decline" (click)="decline()">Decline</button>
+    </div>
+  </div>
+</div>

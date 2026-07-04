@@ -1,0 +1,23 @@
+<div class="chat-wrapper">
+  <div class="chat-header">
+    <div class="header-info">
+      <span class="bot-avatar">🤖</span>
+      <div>
+        <h2>Virtual Agent</h2>
+        <p class="status">Online | Encrypted Channel</p>
+      </div>
+    </div>
+    <button class="sos-btn" (click)="handleSos()" title="Emergency SOS">🚨 Trigger SOS</button>
+  </div>
+  <div class="chat-container">
+    <div class="messages">
+      <div *ngFor="let msg of messages" class="message" [ngClass]="msg.from">
+        <p class="text">{{msg.text}}</p>
+      </div>
+    </div>
+    <div class="input-bar">
+      <input [(ngModel)]="userInput" placeholder="Message Virtual Agent..." (keyup.enter)="sendMessage()" />
+      <button class="send-btn" (click)="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>

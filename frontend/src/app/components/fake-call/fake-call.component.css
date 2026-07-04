@@ -1,0 +1,44 @@
+import { Component, OnInit, OnDestroy } from '@angular/core';
+
+/**
+ * FakeCall component CSS – full‑screen dark overlay with red accents.
+ */
+
+/* Container covers the whole viewport */
+.fake-call {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #ff4d4d;
+  font-family: 'Inter', sans-serif;
+  z-index: 1000;
+}
+
+.fake-call .incoming {
+  text-align: center;
+}
+
+.fake-call .caller {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+
+.fake-call .actions button {
+  background: #221a2a;
+  color: #ff4d4d;
+  border: none;
+  margin: 0 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.fake-call .actions button:hover {
+  background: #2b1e35;
+}

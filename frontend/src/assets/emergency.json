@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Ministry of Health Helpline",
+    "phone": "888-639-5433",
+    "description": "General medical and psychological guidance queries.",
+    "category": "Health"
+  },
+  {
+    "name": "U-Matter Support",
+    "phone": "876-838-4897",
+    "description": "Youth mental health and stress support hotline.",
+    "category": "Mental Health"
+  },
+  {
+    "name": "SafeSpot Line",
+    "phone": "888-723-3776",
+    "description": "Child and teen counseling support channel.",
+    "category": "Youth Support"
+  },
+  {
+    "name": "Woman Inc Crisis Hotline",
+    "phone": "876-929-2997",
+    "description": "Domestic abuse advocacy and crisis response team.",
+    "category": "Domestic Abuse Support"
+  }
+]

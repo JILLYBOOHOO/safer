@@ -1,0 +1,28 @@
+<form [formGroup]="medicalForm" (ngSubmit)="onSubmit()" class="glass-panel medical-form">
+  <div class="form-group">
+    <label for="bloodType">Blood Type</label>
+    <input id="bloodType" class="input-accessible" formControlName="bloodType" placeholder="e.g., O+" />
+  </div>
+  <div class="form-group">
+    <label for="allergies">Allergies (comma separated)</label>
+    <textarea id="allergies" class="input-accessible" formControlName="allergies" rows="2"></textarea>
+  </div>
+  <div class="form-group">
+    <label for="conditions">Medical Conditions (comma separated)</label>
+    <textarea id="conditions" class="input-accessible" formControlName="conditions" rows="2"></textarea>
+  </div>
+  <div class="form-group">
+    <label for="medications">Medications (comma separated)</label>
+    <textarea id="medications" class="input-accessible" formControlName="medications" rows="2"></textarea>
+  </div>
+  <div class="form-group">
+    <label for="doctor">Primary Doctor (name and phone)</label>
+    <input id="doctor" class="input-accessible" formControlName="doctor" placeholder="Dr. Smith, +1‑555‑123‑4567" />
+  </div>
+  <div class="form-group">
+    <label for="emergencyContacts">Emergency Contacts (JSON array)</label>
+    <textarea id="emergencyContacts" class="input-accessible" formControlName="emergencyContacts" rows="3" placeholder='[{"name":"Jane","phone":"+1‑555‑987‑6543"}]'></textarea>
+  </div>
+  <button type="submit" class="btn-primary btn-accessible" [disabled]="loading">{{ loading ? 'Saving…' : 'Save Medical Card' }}</button>
+  <div *ngIf="saved" class="text-success" style="margin-top:8px;">Saved successfully!</div>
+</form>

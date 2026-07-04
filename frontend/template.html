@@ -1,0 +1,346 @@
+`
+<main class="auth-shell">
+  <div class="auth-card glass-panel">
+    
+    <!-- Left branding panel -->
+    <div class="branding-pane" *ngIf="activeView === 'signup'">
+      <div class="glow-effect"></div>
+      <div class="branding-content">
+        <div class="shield-logo">🛡️</div>
+        <h2>Safer Vault</h2>
+        <p class="branding-tagline">Advanced Personal Risk Protection</p>
+        
+        <ul class="benefits-list">
+          <li>
+            <span class="benefit-icon">🔒</span>
+            <div>
+              <strong>Risk-Based MFA</strong>
+              <p>Detects threat environments to trigger additional verification.</p>
+            </div>
+          </li>
+          <li>
+            <span class="benefit-icon">🚨</span>
+            <div>
+              <strong>Silent Duress Trigger</strong>
+              <p>Unlock with emergency codes to silently notify contacts.</p>
+            </div>
+          </li>
+          <li>
+            <span class="benefit-icon">📱</span>
+            <div>
+              <strong>Encrypted Local Storage</strong>
+              <p>Your vault content is fully offline-first and AES-256 secure.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Right interactive form pane -->
+    <div class="form-pane" [style.width]="activeView === 'login' ? '100%' : '55%'">
+      
+      <!-- Tab Headers (Only shown on signup flow) -->
+      <div class="auth-tabs" *ngIf="activeView === 'signup'">
+        <button class="tab-btn" (click)="switchView('login')" *ngIf="activeView !== 'signup'"><i class="material-icons">login</i></button>
+<button class="tab-btn active" (click)="switchView('signup')">Sign Up</button>
+      </div>
+
+      <!-- ================= SIGN IN VIEW (CALCULATOR DECOY) ================= -->
+      <div class="view-container" *ngIf="activeView === 'login'">
+        <div class="logo-header" style="display:flex;align-items:center;margin-bottom:12px;">
+  
+  <span class="app-name" style="font-size:24px;color:#ff477e;margin-left:8px;">Alibi Solver</span>
+</div>
+<div class="calculator-glass">
+          <!-- Hidden system status indicator lines -->
+          <div class="status-indicator-bar" aria-hidden="true">
+            <span class="status-code" style="color: #fbbf24; font-weight: bold;">{{ systemErrorCode }}</span>
+            <span class="status-led" [class.led-panic]="isDuressActive"></span>
+          </div>
+
+
+          <div class="calc-screen">
+            <div class="history" style="color: #ad1457;">{{ calcExpression || '&nbsp;' }}</div>
+            <div class="display" style="color: #c2185b; font-size: 32px;">{{ currentInput || '0' }}</div>
+          </div>
+
+            <div class="helper-row" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; width: 100%;">
+              <span class="helper-text" style="color: #ff69b4; font-size: 14px; text-align: center;">Hey! I'm Solver AI. Tap the <i class="material-icons" style="vertical-align:middle; font-size:16px;">mic</i> or <i class="material-icons" style="vertical-align:middle; font-size:16px;">photo_camera</i> to get help!</span>
+              
+              <div class="chat-input-box" style="display: flex; align-items: center; background: #fff0f3; border: 2px solid #ffccd5; border-radius: 20px; padding: 6px 12px;">
+                <input type="text" placeholder="Type math problem..." style="flex: 1; border: none; background: transparent; color: #ff0a54; outline: none; font-size: 16px; width: 100%;">
+                <button type="button" class="btn-icon" aria-label="Camera scan" style="background: none; border: none; color: #ff477e; cursor: pointer; margin-right: 8px; display: flex;">
+                  <i class="material-icons">photo_camera</i>
+                </button>
+                <button type="button" class="btn-icon" (click)="startVoice()" aria-label="Start voice input" style="background: none; border: none; color: #ff477e; cursor: pointer; display: flex;">
+                  <i class="material-icons">mic</i>
+                </button>
+              </div>
+
+
+            </div>
+            <div class="calc-keys">
+            <!-- Row 1: AC / +/- / % / ÷ -->
+            <button type="button" class="key btn-secondary" (click)="clearCalc()">AC</button>
+            <button type="button" class="key btn-secondary" (click)="toggleSign()">+/-</button>
+            <button type="button" class="key btn-secondary" (click)="applyPercent()">%</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('÷')">÷</button>
+
+            <!-- Row 2: 7 / 8 / 9 / × -->
+            <button type="button" class="key" (click)="appendToExpression('7')">7</button>
+            <button type="button" class="key" (click)="appendToExpression('8')">8</button>
+            <button type="button" class="key" (click)="appendToExpression('9')">9</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('×')">×</button>
+
+            <!-- Row 3: 4 / 5 / 6 / - -->
+            <button type="button" class="key" (click)="appendToExpression('4')">4</button>
+            <button type="button" class="key" (click)="appendToExpression('5')">5</button>
+            <button type="button" class="key" (click)="appendToExpression('6')">6</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('-')">-</button>
+
+            <!-- Row 4: 1 / 2 / 3 / + -->
+            <button type="button" class="key" (click)="appendToExpression('1')">1</button>
+            <button type="button" class="key" (click)="appendToExpression('2')">2</button>
+            <button type="button" class="key" (click)="appendToExpression('3')">3</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('+')">+</button>
+
+            <!-- Row 5: 0 (wide) / . / backspace / = -->
+            <button type="button" class="key double-width" (click)="appendToExpression('0')">0</button>
+            <button type="button" class="key" (click)="appendDot()">.</button>
+            <button type="button" class="key btn-primary" (click)="calculate()">=</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SIGN UP VIEW ================= -->
+      <div class="view-container" *ngIf="activeView === 'signup'">
+  <button class="btn-ghost admin-login" routerLink="/admin-login" style="margin-bottom:12px;">Admin Login</button>
+        
+        <!-- STEP 1: Personal Info -->
+        <div *ngIf="signupStep === 'info'" class="step-body fade-in">
+                       <h3 class="step-title">Create Account</h3>
+          <p class="step-hint">Configure your basic security identifiers</p>
+          
+          <form #signupForm="ngForm" (submit)="goToMethod($event)" class="auth-form">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" class="input-accessible" [(ngModel)]="name" name="name" required pattern="^\\S+\\s+\\S+.*$" placeholder="John Doe" />
+            </div>
+            
+            <div class="form-group">
+              <label>Email Address</label>
+              <input type="email" class="input-accessible" [(ngModel)]="email" name="email" required placeholder="you@example.com" />
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label>Age</label>
+                <input type="number" class="input-accessible" [(ngModel)]="age" name="age" placeholder="Age" required min="0" />
+              </div>
+              <div class="form-group">
+                <label>WhatsApp Phone</label>
+                <input type="tel" class="input-accessible" [(ngModel)]="phone" name="phone" placeholder="e.g. +18765551234" required pattern="\\+\\d{10,15}" />
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label>Account Password</label>
+              <div class="password-wrap">
+                <input [type]="showPassword ? 'text' : 'password'" class="input-accessible" [(ngModel)]="password" name="password" required placeholder="Choose a strong password" />
+                <button type="button" class="toggle-pw" (click)="showPassword = !showPassword">
+                  {{ showPassword ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn-accessible btn-electric-blue full-width" [disabled]="checkingEmail || signupForm.invalid">
+              {{ checkingEmail ? 'Verifying...' : 'Continue →' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- STEP 2: Choose Method -->
+        <div *ngIf="signupStep === 'method'" class="step-body fade-in">
+          <h3 class="step-title">Choose Security Method</h3>
+          <p class="step-hint">Select how you want to unlock your vault normally</p>
+          
+          <div class="method-options">
+            <div class="method-card" [class.selected]="signupAuthMethod === 'passcode'" (click)="selectMethod('passcode')">
+              <span class="method-icon">🔢</span>
+              <div class="method-info">
+                <strong>4-Digit Passcode</strong>
+                <p>Fast numerical code entry</p>
+              </div>
+            </div>
+            
+            <div class="method-card" [class.selected]="signupAuthMethod === 'pattern'" (click)="selectMethod('pattern')">
+              <span class="method-icon">🔵</span>
+              <div class="method-info">
+                <strong>Security Pattern</strong>
+                <p>Swipe unlock grid</p>
+              </div>
+            </div>
+            
+            <div class="method-card" [class.selected]="signupAuthMethod === 'biometric'" [class.disabled]="!biometricAvailable" (click)="selectMethod('biometric')">
+              <span class="method-icon">👆</span>
+              <div class="method-info">
+                <strong>Biometrics ({{ biometricLabel }})</strong>
+                <p>{{ biometricAvailable ? 'Device native scanning' : 'Not supported on this device' }}</p>
+              </div>
+            </div>
+          </div>
+          
+          <button class="btn-accessible btn-electric-blue full-width cta-btn" [disabled]="!signupAuthMethod" (click)="goToSafe()">
+            Continue →
+          </button>
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'info'">← Back</button>
+        </div>
+
+        <!-- STEP 3: Safe Unlock Setup -->
+        <div *ngIf="signupStep === 'safe'" class="step-body fade-in">
+          <h3 class="step-title">Set Your Safe Unlock</h3>
+          <p class="step-hint">This code/pattern opens your vault normally</p>
+
+          <!-- Passcode PIN pad -->
+          <ng-container *ngIf="signupAuthMethod === 'passcode' || signupAuthMethod === 'biometric'">
+            <p class="auth-label">{{ safeStepPhase === 'initial' ? 'Choose a 4-digit passcode' : 'Confirm your passcode' }}</p>
+            <div class="pin-dots-row">
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 0"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 1"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 2"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 3"></span>
+            </div>
+            <div class="pin-pad">
+              <button *ngFor="let n of [1,2,3,4,5,6,7,8,9]" class="pin-btn" (click)="signupPinPress(n, 'safe')">{{ n }}</button>
+              <button class="pin-btn pin-clear" (click)="signupClearPin('safe')">C</button>
+              <button class="pin-btn" (click)="signupPinPress(0, 'safe')">0</button>
+              <button class="pin-btn pin-back" (click)="signupBackspacePin('safe')">⌫</button>
+            </div>
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length < 4" 
+                    (click)="advanceSafeStep()">
+              {{ safeStepPhase === 'initial' ? 'Continue →' : 'Confirm & Proceed →' }}
+            </button>
+          </ng-container>
+
+          <!-- Pattern Grid -->
+          <ng-container *ngIf="signupAuthMethod === 'pattern'">
+            <p class="auth-label">{{ safeStepPhase === 'initial' ? 'Draw your safe unlock pattern' : 'Draw pattern again to confirm' }}</p>
+            <div *ngIf="safeStepPhase === 'initial' && safePattern" class="pattern-drawn">Pattern recorded</div>
+            <div *ngIf="safeStepPhase === 'confirm' && safePatternConfirm" class="pattern-drawn">Pattern confirmed</div>
+            
+            <app-pattern-lock [resetOnEnd]="true" (onPatternComplete)="onSafePatternDrawn($event)"></app-pattern-lock>
+            
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(safeStepPhase === 'initial' ? safePattern : safePatternConfirm).length < 4" 
+                    (click)="advanceSafeStep()">
+              {{ safeStepPhase === 'initial' ? 'Continue →' : 'Confirm & Proceed →' }}
+            </button>
+          </ng-container>
+          
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'method'">← Back</button>
+        </div>
+
+        <!-- STEP 4: Emergency / Duress Setup -->
+        <div *ngIf="signupStep === 'duress'" class="step-body fade-in">
+          <h3 class="step-title" style="color: #facc15;">Emergency Code</h3>
+          <p class="step-hint" style="color: #facc15;">If you're ever in danger or forced to unlock your vault, enter this code instead of your regular PIN. We'll silently notify your emergency contacts with your current location, battery level, and the time of the alert.</p>
+<p class="step-hint" style="color: #facc15;">Create a unique 4-digit Emergency Code.</p>
+          <!-- Passcode PIN pad -->
+          <ng-container *ngIf="signupAuthMethod === 'passcode' || signupAuthMethod === 'biometric'">
+            <p class="auth-label">{{ duressStepPhase === 'initial' ? 'Choose a different 4-digit emergency code' : 'Confirm your emergency code' }}</p>
+            <div class="pin-dots-row">
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 0"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 1"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 2"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 3"></span>
+            </div>
+            <div class="pin-pad">
+              <button *ngFor="let n of [1,2,3,4,5,6,7,8,9]" class="pin-btn" (click)="signupPinPress(n, 'duress')">{{ n }}</button>
+              <button class="pin-btn pin-clear" (click)="signupClearPin('duress')">C</button>
+              <button class="pin-btn" (click)="signupPinPress(0, 'duress')">0</button>
+              <button class="pin-btn pin-back" (click)="signupBackspacePin('duress')">⌫</button>
+            </div>
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length < 4 || registering" 
+                    (click)="advanceDuressStep()">
+              {{ duressStepPhase === 'initial' ? 'Continue →' : (registering ? 'Saving...' : 'Create Account →') }}
+            </button>
+          </ng-container>
+
+          <!-- Pattern Grid -->
+          <ng-container *ngIf="signupAuthMethod === 'pattern'">
+            <p class="auth-label">{{ duressStepPhase === 'initial' ? 'Draw a different emergency pattern' : 'Draw emergency pattern again to confirm' }}</p>
+            <div *ngIf="duressStepPhase === 'initial' && duressPattern" class="pattern-drawn">Emergency pattern recorded</div>
+            <div *ngIf="duressStepPhase === 'confirm' && duressPatternConfirm" class="pattern-drawn">Emergency pattern confirmed</div>
+            
+            <app-pattern-lock [resetOnEnd]="true" (onPatternComplete)="onDuressPatternDrawn($event)"></app-pattern-lock>
+            
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(duressStepPhase === 'initial' ? duressPattern : duressPatternConfirm).length < 4 || registering" 
+                    (click)="advanceDuressStep()">
+              {{ duressStepPhase === 'initial' ? 'Continue →' : (registering ? 'Saving...' : 'Create Account →') }}
+            </button>
+          </ng-container>
+          
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'safe'">← Back</button>
+        </div>
+
+        <!-- STEP 5: Biometric Enroll -->
+        <div *ngIf="signupStep === 'biometric'" class="step-body fade-in">
+          <div class="step-icon" style="animation: pulse-icon 2s ease-in-out infinite">{{ biometricIcon }}</div>
+          <h3 class="step-title">Register Your Biometric</h3>
+          <p class="step-hint">Link your device fingerprint or face scan for quick access</p>
+
+          <button
+            class="biometric-btn"
+            [class.verified]="biometricEnrolled"
+            [class.scanning]="biometricEnrolling"
+            [disabled]="biometricEnrolled || biometricEnrolling"
+            (click)="enrollBiometric()"
+          >
+            <span class="bio-icon">{{ biometricEnrolled ? '✅' : (biometricEnrolling ? '⏳' : biometricIcon) }}</span>
+            <span>{{ biometricEnrolled ? 'Biometric Registered' : (biometricEnrolling ? 'Enrolling...' : 'Register ' + biometricLabel) }}</span>
+          </button>
+          <p *ngIf="biometricError" class="bio-error">{{ biometricError }}</p>
+          
+          <button class="btn-accessible btn-electric-blue full-width cta-btn" (click)="goToDone()">
+            Finish Setup
+          </button>
+        </div>
+
+        <!-- STEP 6: Done screen -->
+        <div *ngIf="signupStep === 'done'" class="step-body fade-in">
+          <div class="step-icon">🎉</div>
+          <h3 class="step-title">Registration Complete</h3>
+          <p class="step-hint">Your secure vault is fully initialized. Welcome to Safer!</p>
+          
+          <div class="done-info-badge">
+            Your primary login method is configured as: <strong>{{ methodLabel }}</strong>
+          </div>
+          
+          <div style="background: rgba(0, 240, 255, 0.05); border: 2px solid #0088aa; border-radius: 12px; padding: 16px; margin: 8px 0; text-align: left;">
+            <h4 style="color: #00f0ff; margin-top: 0; margin-bottom: 12px; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+              <i class="material-icons" style="font-size: 20px;">info</i> How to Access Your Vault
+            </h4>
+            <ul style="color: #a0c0e0; font-size: 15px; margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px;">
+              <li>When you proceed, you will see a <strong>Decoy Calculator App</strong>.</li>
+              <li>This calculator works like a real calculator to disguise your secure vault from prying eyes.</li>
+              <li>It also features a decoy "Solver AI" with fake chat, voice, and camera scanning options to make it look legitimate.</li>
+              <li><strong>To unlock your vault:</strong> Type the <strong>{{ signupAuthMethod === 'pattern' ? 'numbers corresponding to your pattern' : 'PIN' }}</strong> you just created directly into the calculator screen. It will automatically log you in.</li>
+              <li>To trigger an emergency silent alert, type your <strong>Emergency Code</strong> instead.</li>
+            </ul>
+          </div>
+</div>
+          
+          
+        
+
+      
+
+    </div>
+</div>
+
+
+</main>
+  `

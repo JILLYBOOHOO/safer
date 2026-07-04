@@ -1,0 +1,1699 @@
+import { Component, OnInit, NgZone } from '@angular/core';
+import { Router, ActivatedRoute } from '@angular/router';
+import { SecurityService } from '../../services/security.service';
+import { AlertService } from '../../services/alert.service';
+
+type LoginStep = 'email' | 'auth' | 'otp-reset';
+type SignupStep = 'info' | 'method' | 'safe' | 'duress' | 'biometric' | 'done';
+type AuthMethod = 'passcode' | 'pattern' | 'biometric' | 'password';
+
+// Helpers
+function bufferToBase64url(buf: ArrayBuffer): string {
+  const arr = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < arr.byteLength; i++) {
+    binary += String.fromCharCode(arr[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+@Component({
+  selector: 'app-login',
+  template: `
+<main class="auth-shell">
+  <div class="auth-card glass-panel">
+    
+    <!-- Left branding panel -->
+    <div class="branding-pane" *ngIf="activeView === 'signup'">
+      <div class="glow-effect"></div>
+      <div class="branding-content">
+        <div class="shield-logo">🛡️</div>
+        <h2>Safer Vault</h2>
+        <p class="branding-tagline">Advanced Personal Risk Protection</p>
+        
+        <ul class="benefits-list">
+          <li>
+            <span class="benefit-icon">🔒</span>
+            <div>
+              <strong>Risk-Based MFA</strong>
+              <p>Detects threat environments to trigger additional verification.</p>
+            </div>
+          </li>
+          <li>
+            <span class="benefit-icon">🚨</span>
+            <div>
+              <strong>Silent Duress Trigger</strong>
+              <p>Unlock with emergency codes to silently notify contacts.</p>
+            </div>
+          </li>
+          <li>
+            <span class="benefit-icon">📱</span>
+            <div>
+              <strong>Encrypted Local Storage</strong>
+              <p>Your vault content is fully offline-first and AES-256 secure.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Right interactive form pane -->
+    <div class="form-pane" [style.width]="activeView === 'login' ? '100%' : '55%'">
+      
+      <!-- Tab Headers (Only shown on signup flow) -->
+      <div class="auth-tabs" *ngIf="activeView === 'signup'">
+        <button class="tab-btn" (click)="switchView('login')" *ngIf="activeView !== 'signup'"><i class="material-icons">login</i></button>
+<button class="tab-btn active" (click)="switchView('signup')">Sign Up</button>
+      </div>
+
+      <!-- ================= SIGN IN VIEW (CALCULATOR DECOY) ================= -->
+      <div class="view-container" *ngIf="activeView === 'login'">
+        <div class="logo-header" style="display:flex;align-items:center;margin-bottom:12px;">
+  
+  <span class="app-name" style="font-size:24px;color:#ff477e;margin-left:8px;">Alibi Solver</span>
+</div>
+<div class="calculator-glass">
+          <!-- Hidden system status indicator lines -->
+          <div class="status-indicator-bar" aria-hidden="true">
+            <span class="status-code" style="color: #fbbf24; font-weight: bold;">{{ systemErrorCode }}</span>
+            <span class="status-led" [class.led-panic]="isDuressActive"></span>
+          </div>
+
+
+          <div class="calc-screen">
+            <div class="history" style="color: #ad1457;">{{ calcExpression || '&nbsp;' }}</div>
+            <div class="display" style="color: #c2185b; font-size: 32px;">{{ currentInput || '0' }}</div>
+          </div>
+
+            <div class="helper-row" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; width: 100%;">
+              <span class="helper-text" style="color: #ff69b4; font-size: 14px; text-align: center;">Hey! I'm Solver AI. Tap the <i class="material-icons" style="vertical-align:middle; font-size:16px;">mic</i> or <i class="material-icons" style="vertical-align:middle; font-size:16px;">photo_camera</i> to get help!</span>
+              
+              <div class="chat-input-box" style="display: flex; align-items: center; background: #fff0f3; border: 2px solid #ffccd5; border-radius: 20px; padding: 6px 12px;">
+                <input type="text" placeholder="Type math problem..." style="flex: 1; border: none; background: transparent; color: #ff0a54; outline: none; font-size: 16px; width: 100%;">
+                <button type="button" class="btn-icon" aria-label="Camera scan" style="background: none; border: none; color: #ff477e; cursor: pointer; margin-right: 8px; display: flex;">
+                  <i class="material-icons">photo_camera</i>
+                </button>
+                <button type="button" class="btn-icon" (click)="startVoice()" aria-label="Start voice input" style="background: none; border: none; color: #ff477e; cursor: pointer; display: flex;">
+                  <i class="material-icons">mic</i>
+                </button>
+              </div>
+
+
+            </div>
+            <div class="calc-keys">
+            <!-- Row 1: AC / +/- / % / ÷ -->
+            <button type="button" class="key btn-secondary" (click)="clearCalc()">AC</button>
+            <button type="button" class="key btn-secondary" (click)="toggleSign()">+/-</button>
+            <button type="button" class="key btn-secondary" (click)="applyPercent()">%</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('÷')">÷</button>
+
+            <!-- Row 2: 7 / 8 / 9 / × -->
+            <button type="button" class="key" (click)="appendToExpression('7')">7</button>
+            <button type="button" class="key" (click)="appendToExpression('8')">8</button>
+            <button type="button" class="key" (click)="appendToExpression('9')">9</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('×')">×</button>
+
+            <!-- Row 3: 4 / 5 / 6 / - -->
+            <button type="button" class="key" (click)="appendToExpression('4')">4</button>
+            <button type="button" class="key" (click)="appendToExpression('5')">5</button>
+            <button type="button" class="key" (click)="appendToExpression('6')">6</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('-')">-</button>
+
+            <!-- Row 4: 1 / 2 / 3 / + -->
+            <button type="button" class="key" (click)="appendToExpression('1')">1</button>
+            <button type="button" class="key" (click)="appendToExpression('2')">2</button>
+            <button type="button" class="key" (click)="appendToExpression('3')">3</button>
+            <button type="button" class="key btn-operator" (click)="appendToExpression('+')">+</button>
+
+            <!-- Row 5: 0 (wide) / . / backspace / = -->
+            <button type="button" class="key double-width" (click)="appendToExpression('0')">0</button>
+            <button type="button" class="key" (click)="appendDot()">.</button>
+            <button type="button" class="key btn-primary" (click)="calculate()">=</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SIGN UP VIEW ================= -->
+      <div class="view-container" *ngIf="activeView === 'signup'">
+  <button class="btn-ghost admin-login" routerLink="/admin-login" style="margin-bottom:12px;">Admin Login</button>
+        
+        <!-- STEP 1: Personal Info -->
+        <div *ngIf="signupStep === 'info'" class="step-body fade-in">
+                       <h3 class="step-title">Create Account</h3>
+          <p class="step-hint">Configure your basic security identifiers</p>
+          
+          <form #signupForm="ngForm" (submit)="goToMethod($event)" class="auth-form">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" class="input-accessible" [(ngModel)]="name" name="name" required pattern="^\\S+\\s+\\S+.*$" placeholder="John Doe" />
+            </div>
+            
+            <div class="form-group">
+              <label>Email Address</label>
+              <input type="email" class="input-accessible" [(ngModel)]="email" name="email" required placeholder="you@example.com" />
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label>Age</label>
+                <input type="number" class="input-accessible" [(ngModel)]="age" name="age" placeholder="Age" required min="0" />
+              </div>
+              <div class="form-group">
+                <label>WhatsApp Phone</label>
+                <input type="tel" class="input-accessible" [(ngModel)]="phone" name="phone" placeholder="e.g. +18765551234" required pattern="\\+\\d{10,15}" />
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label>Account Password</label>
+              <div class="password-wrap">
+                <input [type]="showPassword ? 'text' : 'password'" class="input-accessible" [(ngModel)]="password" name="password" required placeholder="Choose a strong password" />
+                <button type="button" class="toggle-pw" (click)="showPassword = !showPassword">
+                  {{ showPassword ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn-accessible btn-electric-blue full-width" [disabled]="checkingEmail || signupForm.invalid">
+              {{ checkingEmail ? 'Verifying...' : 'Continue →' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- STEP 2: Choose Method -->
+        <div *ngIf="signupStep === 'method'" class="step-body fade-in">
+          <h3 class="step-title">Choose Security Method</h3>
+          <p class="step-hint">Select how you want to unlock your vault normally</p>
+          
+          <div class="method-options">
+            <div class="method-card" [class.selected]="signupAuthMethod === 'passcode'" (click)="selectMethod('passcode')">
+              <span class="method-icon">🔢</span>
+              <div class="method-info">
+                <strong>4-Digit Passcode</strong>
+                <p>Fast numerical code entry</p>
+              </div>
+            </div>
+            
+            <div class="method-card" [class.selected]="signupAuthMethod === 'pattern'" (click)="selectMethod('pattern')">
+              <span class="method-icon">🔵</span>
+              <div class="method-info">
+                <strong>Security Pattern</strong>
+                <p>Swipe unlock grid</p>
+              </div>
+            </div>
+            
+            <div class="method-card" [class.selected]="signupAuthMethod === 'biometric'" [class.disabled]="!biometricAvailable" (click)="selectMethod('biometric')">
+              <span class="method-icon">👆</span>
+              <div class="method-info">
+                <strong>Biometrics ({{ biometricLabel }})</strong>
+                <p>{{ biometricAvailable ? 'Device native scanning' : 'Not supported on this device' }}</p>
+              </div>
+            </div>
+          </div>
+          
+          <button class="btn-accessible btn-electric-blue full-width cta-btn" [disabled]="!signupAuthMethod" (click)="goToSafe()">
+            Continue →
+          </button>
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'info'">← Back</button>
+        </div>
+
+        <!-- STEP 3: Safe Unlock Setup -->
+        <div *ngIf="signupStep === 'safe'" class="step-body fade-in">
+          <h3 class="step-title">Set Your Safe Unlock</h3>
+          <p class="step-hint">This code/pattern opens your vault normally</p>
+
+          <!-- Passcode PIN pad -->
+          <ng-container *ngIf="signupAuthMethod === 'passcode' || signupAuthMethod === 'biometric'">
+            <p class="auth-label">{{ safeStepPhase === 'initial' ? 'Choose a 4-digit passcode' : 'Confirm your passcode' }}</p>
+            <div class="pin-dots-row">
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 0"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 1"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 2"></span>
+              <span class="pin-dot" [class.filled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length > 3"></span>
+            </div>
+            <div class="pin-pad">
+              <button *ngFor="let n of [1,2,3,4,5,6,7,8,9]" class="pin-btn" (click)="signupPinPress(n, 'safe')">{{ n }}</button>
+              <button class="pin-btn pin-clear" (click)="signupClearPin('safe')">C</button>
+              <button class="pin-btn" (click)="signupPinPress(0, 'safe')">0</button>
+              <button class="pin-btn pin-back" (click)="signupBackspacePin('safe')">⌫</button>
+            </div>
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(safeStepPhase === 'initial' ? safePin : safePinConfirm).length < 4" 
+                    (click)="advanceSafeStep()">
+              {{ safeStepPhase === 'initial' ? 'Continue →' : 'Confirm & Proceed →' }}
+            </button>
+          </ng-container>
+
+          <!-- Pattern Grid -->
+          <ng-container *ngIf="signupAuthMethod === 'pattern'">
+            <p class="auth-label">{{ safeStepPhase === 'initial' ? 'Draw your safe unlock pattern' : 'Draw pattern again to confirm' }}</p>
+            <div *ngIf="safeStepPhase === 'initial' && safePattern" class="pattern-drawn">Pattern recorded</div>
+            <div *ngIf="safeStepPhase === 'confirm' && safePatternConfirm" class="pattern-drawn">Pattern confirmed</div>
+            
+            <app-pattern-lock [resetOnEnd]="true" (onPatternComplete)="onSafePatternDrawn($event)"></app-pattern-lock>
+            
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(safeStepPhase === 'initial' ? safePattern : safePatternConfirm).length < 4" 
+                    (click)="advanceSafeStep()">
+              {{ safeStepPhase === 'initial' ? 'Continue →' : 'Confirm & Proceed →' }}
+            </button>
+          </ng-container>
+          
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'method'">← Back</button>
+        </div>
+
+        <!-- STEP 4: Emergency / Duress Setup -->
+        <div *ngIf="signupStep === 'duress'" class="step-body fade-in">
+          <h3 class="step-title" style="color: #facc15;">Emergency Code</h3>
+          <p class="step-hint" style="color: #facc15;">If you're ever in danger or forced to unlock your vault, enter this code instead of your regular PIN. We'll silently notify your emergency contacts with your current location, battery level, and the time of the alert.</p>
+<p class="step-hint" style="color: #facc15;">Create a unique 4-digit Emergency Code.</p>
+          <!-- Passcode PIN pad -->
+          <ng-container *ngIf="signupAuthMethod === 'passcode' || signupAuthMethod === 'biometric'">
+            <p class="auth-label">{{ duressStepPhase === 'initial' ? 'Choose a different 4-digit emergency code' : 'Confirm your emergency code' }}</p>
+            <div class="pin-dots-row">
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 0"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 1"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 2"></span>
+              <span class="pin-dot" [class.filled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length > 3"></span>
+            </div>
+            <div class="pin-pad">
+              <button *ngFor="let n of [1,2,3,4,5,6,7,8,9]" class="pin-btn" (click)="signupPinPress(n, 'duress')">{{ n }}</button>
+              <button class="pin-btn pin-clear" (click)="signupClearPin('duress')">C</button>
+              <button class="pin-btn" (click)="signupPinPress(0, 'duress')">0</button>
+              <button class="pin-btn pin-back" (click)="signupBackspacePin('duress')">⌫</button>
+            </div>
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(duressStepPhase === 'initial' ? duressPin : duressPinConfirm).length < 4 || registering" 
+                    (click)="advanceDuressStep()">
+              {{ duressStepPhase === 'initial' ? 'Continue →' : (registering ? 'Saving...' : 'Create Account →') }}
+            </button>
+          </ng-container>
+
+          <!-- Pattern Grid -->
+          <ng-container *ngIf="signupAuthMethod === 'pattern'">
+            <p class="auth-label">{{ duressStepPhase === 'initial' ? 'Draw a different emergency pattern' : 'Draw emergency pattern again to confirm' }}</p>
+            <div *ngIf="duressStepPhase === 'initial' && duressPattern" class="pattern-drawn">Emergency pattern recorded</div>
+            <div *ngIf="duressStepPhase === 'confirm' && duressPatternConfirm" class="pattern-drawn">Emergency pattern confirmed</div>
+            
+            <app-pattern-lock [resetOnEnd]="true" (onPatternComplete)="onDuressPatternDrawn($event)"></app-pattern-lock>
+            
+            <button class="btn-accessible btn-electric-blue full-width cta-btn" 
+                    [disabled]="(duressStepPhase === 'initial' ? duressPattern : duressPatternConfirm).length < 4 || registering" 
+                    (click)="advanceDuressStep()">
+              {{ duressStepPhase === 'initial' ? 'Continue →' : (registering ? 'Saving...' : 'Create Account →') }}
+            </button>
+          </ng-container>
+          
+          <button class="btn-accessible btn-ghost full-width" (click)="signupStep = 'safe'">← Back</button>
+        </div>
+
+        <!-- STEP 5: Biometric Enroll -->
+        <div *ngIf="signupStep === 'biometric'" class="step-body fade-in">
+          <div class="step-icon" style="animation: pulse-icon 2s ease-in-out infinite">{{ biometricIcon }}</div>
+          <h3 class="step-title">Register Your Biometric</h3>
+          <p class="step-hint">Link your device fingerprint or face scan for quick access</p>
+
+          <button
+            class="biometric-btn"
+            [class.verified]="biometricEnrolled"
+            [class.scanning]="biometricEnrolling"
+            [disabled]="biometricEnrolled || biometricEnrolling"
+            (click)="enrollBiometric()"
+          >
+            <span class="bio-icon">{{ biometricEnrolled ? '✅' : (biometricEnrolling ? '⏳' : biometricIcon) }}</span>
+            <span>{{ biometricEnrolled ? 'Biometric Registered' : (biometricEnrolling ? 'Enrolling...' : 'Register ' + biometricLabel) }}</span>
+          </button>
+          <p *ngIf="biometricError" class="bio-error">{{ biometricError }}</p>
+          
+          <button class="btn-accessible btn-electric-blue full-width cta-btn" (click)="goToDone()">
+            Finish Setup
+          </button>
+        </div>
+
+        <!-- STEP 6: Done screen -->
+        <div *ngIf="signupStep === 'done'" class="step-body fade-in">
+          <div class="step-icon">🎉</div>
+          <h3 class="step-title">Registration Complete</h3>
+          <p class="step-hint">Your secure vault is fully initialized. Welcome to Safer!</p>
+          
+          <div class="done-info-badge">
+            Your primary login method is configured as: <strong>{{ methodLabel }}</strong>
+          </div>
+          
+          <div style="background: rgba(0, 240, 255, 0.05); border: 2px solid #0088aa; border-radius: 12px; padding: 16px; margin: 8px 0; text-align: left;">
+            <h4 style="color: #00f0ff; margin-top: 0; margin-bottom: 12px; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+              <i class="material-icons" style="font-size: 20px;">info</i> How to Access Your Vault
+            </h4>
+            <ul style="color: #a0c0e0; font-size: 15px; margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px;">
+              <li>When you proceed, you will see a <strong>Decoy Calculator App</strong>.</li>
+              <li>This calculator works like a real calculator to disguise your secure vault from prying eyes.</li>
+              <li>It also features a decoy "Solver AI" with fake chat, voice, and camera scanning options to make it look legitimate.</li>
+              <li><strong>To unlock your vault:</strong> Type the <strong>{{ signupAuthMethod === 'pattern' ? 'numbers corresponding to your pattern' : 'PIN' }}</strong> you just created directly into the calculator screen. It will automatically log you in.</li>
+              <li>To trigger an emergency silent alert, type your <strong>Emergency Code</strong> instead.</li>
+            </ul>
+          </div>
+</div>
+          
+          
+        
+
+      
+
+    </div>
+</div>
+
+
+</main>
+  `,
+  styles: [`
+    .auth-shell {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+      background: #000000;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 900px;
+      min-height: 600px;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);
+      border: 2px solid #00f0ff;
+      background: #050508;
+    }
+
+    /* Left Branding Pane */
+    .branding-pane {
+      width: 45%;
+      background: linear-gradient(135deg, #000000 0%, #001224 100%);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      color: #fff;
+      border-right: 2px solid #00f0ff;
+    }
+    .glow-effect {
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: radial-gradient(circle, rgba(0, 240, 255, 0.1) 0%, transparent 60%);
+      pointer-events: none;
+      animation: rotate-glow 20s linear infinite;
+    }
+    @keyframes rotate-glow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .branding-content { position: relative; z-index: 2; }
+    .shield-logo { font-size: 64px; margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.6)); }
+    .branding-pane h2 { font-size: 34px; font-weight: 900; margin: 0 0 12px; color: #00f0ff; text-shadow: 0 0 12px rgba(0, 240, 255, 0.5); }
+    .branding-tagline { font-size: 16px; color: #a0d0f0; margin: 0 0 36px; font-weight: 500; }
+    .benefits-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 28px; }
+    .benefits-list li { display: flex; gap: 20px; align-items: flex-start; }
+    .benefit-icon { font-size: 28px; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.4)); }
+    .benefits-list li strong { font-size: 16px; font-weight: 700; color: #00f0ff; display: block; margin-bottom: 6px; }
+    .benefits-list li p { font-size: 14px; color: #e0f2fe; margin: 0; line-height: 1.5; }
+
+    /* Right Form Pane */
+    .form-pane {
+      width: 55%;
+      background: #020204;
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 28px;
+    }
+
+    /* Tabs */
+    .auth-tabs {
+      display: flex;
+      gap: 16px;
+      border-bottom: 2px solid rgba(0, 240, 255, 0.15);
+      padding-bottom: 12px;
+    }
+    .tab-btn {
+      background: none; border: none;
+      color: #7090b0;
+      font-size: 20px; font-weight: 700;
+      padding: 4px 16px; cursor: pointer;
+      position: relative; transition: all 0.2s;
+    }
+    .tab-btn:hover { color: #00f0ff; }
+    .tab-btn.active { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.4); }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute; bottom: -14px; left: 0; right: 0;
+      height: 3px; background: #00f0ff;
+      box-shadow: 0 0 10px #00f0ff;
+    }
+
+    /* Step body styles */
+    .step-body { display: flex; flex-direction: column; gap: 22px; }
+    .step-title { font-size: 28px; font-weight: 900; color: #00f0ff; margin: 0; text-shadow: 0 0 10px rgba(0, 240, 255, 0.4); }
+    .step-hint { font-size: 15px; color: #a0c0e0; margin: 0; line-height: 1.5; }
+    .step-icon { font-size: 56px; text-align: center; }
+    
+    .auth-form { display: flex; flex-direction: column; gap: 20px; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-group label { font-size: 15px; font-weight: 700; color: #00f0ff; }
+    
+    .form-row { display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
+
+    /* Inputs */
+    .input-accessible {
+      background: #080a10;
+      border: 2px solid #0088aa;
+      color: #ffffff;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 17px;
+      transition: all 0.2s;
+      outline: none;
+      width: 100%;
+      font-weight: 600;
+    }
+    .input-accessible::placeholder {
+      color: #608090;
+    }
+    .input-accessible:focus {
+      border-color: #00f0ff;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+      background: #0c0e18;
+    }
+
+    /* Password Toggle */
+    .password-wrap { position: relative; width: 100%; }
+    .password-wrap .input-accessible { padding-right: 64px; }
+    .toggle-pw {
+      position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+      background: transparent; border: none; cursor: pointer;
+      font-size: 14px; font-weight: 700; color: #00f0ff;
+    }
+
+    /* Buttons */
+    .btn-electric-blue {
+      background: #00f0ff;
+      color: #000000;
+      border: none;
+      padding: 16px 24px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 900;
+      transition: all 0.2s;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+    .btn-electric-blue:hover:not(:disabled) {
+      background: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+    }
+    .btn-electric-blue:active { transform: translateY(0); }
+    .btn-electric-blue:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+    
+    .btn-ghost {
+      background: transparent;
+      border: 2px solid rgba(0, 240, 255, 0.3);
+      color: #00f0ff;
+      padding: 14px 24px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .btn-ghost:hover {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.05);
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    }
+    .back-btn {
+        background: none;
+        border: none;
+        color: #ff477e;
+        cursor: pointer;
+        font-size: 20px;
+        margin-left: 8px;
+      }
+    .ghost-link {
+      background: none; border: none;
+      color: #00f0ff; font-size: 15px; font-weight: 700;
+      cursor: pointer; text-align: center; align-self: center; margin-top: 12px;
+      text-decoration: underline;
+    }
+    .ghost-link:hover { color: #ffffff; }
+
+    /* Method Selector cards */
+    .method-options { display: flex; flex-direction: column; gap: 14px; }
+    .method-card {
+      display: flex; gap: 20px; align-items: center;
+      background: #080a10;
+      border: 2px solid rgba(0, 240, 255, 0.2);
+      border-radius: 16px; padding: 18px 22px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .method-card:hover:not(.disabled) {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.05);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+    .method-card.selected {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.1);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+    }
+    .method-card.disabled { opacity: 0.3; cursor: not-allowed; }
+    .method-icon { font-size: 32px; }
+    .method-info strong { font-size: 16px; color: #ffffff; display: block; margin-bottom: 4px; }
+    .method-info p { font-size: 13px; color: #a0c0e0; margin: 0; }
+
+    /* PIN pads & Dots */
+    .pin-dots-row { display: flex; gap: 20px; justify-content: center; margin: 12px 0; }
+    .pin-dot {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 3px solid rgba(0, 240, 255, 0.3);
+      background: transparent; transition: all 0.2s;
+    }
+    .pin-dot.filled {
+      background: #00f0ff; border-color: #00f0ff;
+      box-shadow: 0 0 12px #00f0ff;
+    }
+    .pin-pad {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; width: 100%; max-width: 280px; align-self: center;
+    }
+    .pin-btn {
+      aspect-ratio: 1.1;
+      background: #070912;
+      border: 2px solid rgba(0, 240, 255, 0.3);
+      border-radius: 16px; font-size: 22px; font-weight: 700;
+      color: #00f0ff; cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 56px;
+    }
+    .pin-btn:hover {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.05);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    }
+    .pin-btn:active { background: rgba(0, 240, 255, 0.15); transform: scale(0.95); }
+    .pin-clear { color: #f87171; border-color: rgba(248, 113, 113, 0.4); font-size: 15px; }
+    .pin-clear:hover { border-color: #f87171; background: rgba(248, 113, 113, 0.05); box-shadow: 0 0 10px rgba(248, 113, 113, 0.3); }
+    .pin-back { font-size: 20px; }
+
+    /* Biometrics buttons */
+    .biometric-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      padding: 36px 24px; background: #070912;
+      border: 2px dashed rgba(0, 240, 255, 0.4); border-radius: 20px;
+      cursor: pointer; color: #00f0ff; width: 100%;
+      transition: all 0.2s;
+    }
+    .biometric-btn:hover:not(:disabled) { border-color: #00f0ff; color: #ffffff; background: rgba(0, 240, 255, 0.05); box-shadow: 0 0 15px rgba(0, 240, 255, 0.2); }
+    .biometric-btn.verified { background: rgba(34,197,94,0.1); border-color: #22c55e; color: #4ade80; cursor: default; border-style: solid; box-shadow: 0 0 15px rgba(34,197,94,0.3); }
+    .biometric-btn.scanning { border-color: #00f0ff; animation: pulse-border 1s infinite; border-style: solid; }
+    @keyframes pulse-border {
+      0%, 100% { border-color: #00f0ff; box-shadow: 0 0 5px rgba(0,240,255,0.2); }
+      50% { border-color: transparent; box-shadow: none; }
+    }
+    .bio-icon { font-size: 44px; }
+    .bio-error { font-size: 13px; color: #f87171; text-align: center; margin: 0; font-weight: bold; }
+    
+    .fallback-link { background: none; border: none; color: #00f0ff; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: underline; align-self: center; }
+    .fallback-link:hover { color: #ffffff; }
+
+    .pattern-drawn {
+      font-size: 14px; background: rgba(34,197,94,0.1);
+      border: 2px solid #22c55e; color: #4ade80;
+      padding: 8px 16px; border-radius: 8px; text-align: center;
+      font-weight: 700;
+    }
+
+    /* User details done card */
+    .done-info-badge {
+      background: rgba(0, 240, 255, 0.08);
+      border: 2px solid rgba(0, 240, 255, 0.3);
+      border-radius: 12px; padding: 16px;
+      font-size: 15px; text-align: center;
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Lockout warning */
+    .lockout-panel {
+      background: rgba(239,68,68,0.12);
+      border: 2px solid rgba(239,68,68,0.3);
+      border-radius: 12px; padding: 12px 18px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .warn-text { font-size: 13px; color: #fca5a5; margin: 0; font-weight: 700; }
+    
+    .user-chip {
+      display: flex; align-items: center; gap: 12px;
+      background: #080a10;
+      border: 2px solid #00f0ff;
+      border-radius: 50px; padding: 8px 16px;
+    }
+    .user-avatar {
+      width: 32px; height: 32px; background: #00f0ff;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 14px; font-weight: 800;
+      color: #000;
+    }
+    .user-email { font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff; font-weight: 600; }
+
+    .fade-in {
+      animation: form-fade 0.3s ease-out forwards;
+    }
+    @keyframes form-fade {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Calculator Decoy Styles */
+    .calculator-glass {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      background: #ffe5ec;
+      border: 2px solid #ff85a1;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 0 25px rgba(255, 133, 161, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .status-indicator-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+      font-size: 13px;
+      font-family: monospace;
+      color: #ff477e;
+    }
+    .status-led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    .status-led.led-panic {
+      background: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+    .calc-screen {
+      background: #fff0f3;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: right;
+      font-family: monospace;
+      border: 2px solid #ffccd5;
+    }
+    .history {
+      font-size: 16px;
+      min-height: 22px;
+      color: #ff758f;
+    }
+    .display {
+      font-weight: 700;
+      overflow-x: auto;
+      white-space: nowrap;
+      margin-top: 6px;
+      color: #ff0a54;
+    }
+    .calc-keys {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .key {
+      min-height: 60px;
+      border-radius: 14px;
+      font-size: 22px;
+      font-weight: 700;
+      border: 2px solid #ffccd5;
+      background: #ffffff;
+      color: #ff477e;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .key:hover {
+      border-color: #ff85a1;
+      background: #fff0f3;
+      box-shadow: 0 0 10px rgba(255, 133, 161, 0.25);
+    }
+    .key:active {
+      transform: scale(0.96);
+    }
+    .key.btn-secondary {
+      color: #ff0a54;
+      border-color: #ffccd5;
+      background: #ffe5ec;
+    }
+    .key.btn-secondary:hover {
+      border-color: #ff85a1;
+      background: #ffccd5;
+    }
+    .key.btn-danger {
+      color: #ff0a54;
+      border-color: #ffccd5;
+      background: #ffccd5;
+    }
+    .key.btn-danger:hover {
+      border-color: #ff85a1;
+      background: #ff85a1;
+      color: #ffffff;
+    }
+    .key.btn-primary {
+      color: #ffffff;
+      background: #ff477e;
+      border-color: #ff477e;
+    }
+    .key.btn-primary:hover {
+      background: #ff0a54;
+      border-color: #ff0a54;
+      box-shadow: 0 0 15px rgba(255, 10, 84, 0.5);
+    }
+    .double-width {
+      grid-column: span 2;
+    }
+    .key.btn-operator {
+      color: #ad1457;
+      border-color: #f8bbd0;
+      background: #fce4ec;
+      font-size: 24px;
+    }
+    .key.btn-operator:hover {
+      border-color: #f06292;
+      background: #f48fb1;
+      color: #880e4f;
+    }
+
+    /* Admin Mode Toggle */
+    .admin-mode-toggle { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+    .admin-toggle-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(251,191,36,0.06);
+      border: 2px solid rgba(251,191,36,0.3);
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 13px; font-weight: 700;
+      color: #fbbf24; cursor: pointer; transition: all 0.2s;
+    }
+    .admin-toggle-btn:hover { background: rgba(251,191,36,0.15); color: #fbbf24; box-shadow: 0 0 10px rgba(251,191,36,0.3); }
+    .admin-toggle-btn.active { background: rgba(251,191,36,0.25); border-color: #fbbf24; color: #fbbf24; }
+    .toggle-icon { font-size: 14px; }
+    .btn-admin { background: #fbbf24 !important; color: #000000 !important; }
+    .btn-admin:hover:not(:disabled) { background: #f59e0b !important; box-shadow: 0 0 20px rgba(251,191,36,0.6); }
+
+    /* Reset Passcode Row */
+    .reset-passcode-row {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      padding: 12px;
+      background: rgba(0, 240, 255, 0.04);
+      border: 2px solid rgba(0, 240, 255, 0.2);
+      border-radius: 12px; margin-top: 6px;
+    }
+    .reset-label { font-size: 13px; color: #a0c0e0; font-weight: 600; }
+    .reset-passcode-btn {
+      background: none; border: 2px solid #00f0ff; border-radius: 10px;
+      color: #00f0ff; font-size: 13px; font-weight: 700;
+      padding: 6px 14px; cursor: pointer; transition: all 0.2s;
+    }
+    .reset-passcode-btn:hover:not(:disabled) { background: rgba(0, 240, 255, 0.1); box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); }
+    .reset-passcode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Mobile Responsiveness for Calculator Decoy */
+    @media (max-width: 600px) {
+      .auth-shell {
+        padding: 0;
+        background: #ffe5ec;
+      }
+      .auth-card {
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        min-height: 100vh;
+        background: #ffe5ec;
+      }
+      .form-pane {
+        padding: 16px;
+        background: #ffe5ec;
+      }
+      .calculator-glass {
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 16px;
+        max-width: 100%;
+        min-height: 100vh;
+        background: #ffe5ec;
+      }
+      .calc-screen {
+        margin-top: 10px;
+      }
+      .key {
+        min-height: 72px; /* Taller keys for mobile friendly tap targets */
+      }
+    }
+  `]
+})
+export class LoginComponent implements OnInit {
+  public activeView: 'login' | 'signup' = 'login';
+  public step: LoginStep = 'email';
+  public signupStep: SignupStep = 'info';
+  public isAdminMode = false;
+
+  // Calculator variables
+  public currentInput = '';
+  public history = '';
+  private prevInput = '';
+  private operator = '';
+  private shouldResetScreen = false;
+  public systemErrorCode = 'ERR: low_pwr_20';
+  public isDuressActive = false;
+
+  // State shared / Login variables
+  public identifier = '';
+  public password = '';
+  public pin = '';
+  public patternCode = '';
+  public showPassword = false;
+  
+  public scanning = false;
+  public authenticating = false;
+  
+  public requiredLevel = 1;
+  public authMethod: AuthMethod = 'passcode';
+  public defaultAuthMethod: AuthMethod = 'passcode';
+
+  public biometricVerified = false;
+  public biometricScanning = false;
+  public biometricError = '';
+  
+  public otpCode = '';
+  public newPassword = '';
+  public verifyingOTP = false;
+  public attemptsCount = 0;
+  public isLockedOut = false;
+
+  // Sign Up Flow State
+  public name = '';
+  public email = '';
+  public age: number | null = null;
+  public phone = '';
+  public checkingEmail = false;
+  public signupAuthMethod: AuthMethod | null = null;
+
+  // Safe Setup
+  public safePin = '';
+  public safePinConfirm = '';
+  public safePattern = '';
+  public safePatternConfirm = '';
+  public safeStepPhase: 'initial' | 'confirm' = 'initial';
+
+  // Duress Setup
+  public duressPin = '';
+  public duressPinConfirm = '';
+  public duressPattern = '';
+  public duressPatternConfirm = '';
+  public duressStepPhase: 'initial' | 'confirm' = 'initial';
+
+  // Biometrics
+  public biometricAvailable = false;
+  public biometricType: 'fingerprint' | 'faceid' | 'platform' = 'platform';
+  public biometricEnrolling = false;
+  public biometricEnrolled = false;
+  
+  public registering = false;
+
+  constructor(
+    private securityService: SecurityService,
+    private router: Router,
+    private route: ActivatedRoute,
+    private zone: NgZone,
+    private alertService: AlertService
+  ) {}
+
+  ngOnInit() {
+    if (this.securityService.currentUserValue) {
+      this.router.navigate(['/dashboard']);
+    }
+    
+    // Read route query parameters to decide active tab
+    this.route.queryParams.subscribe(params => {
+      if (params['tab'] === 'signup') {
+        this.activeView = 'signup';
+        this.signupStep = 'info';
+      } else {
+        this.activeView = 'login';
+        this.step = 'email';
+      }
+    });
+
+    this.detectBiometrics();
+
+    // Check if duress mode is active in the session storage to reflect status LED
+    this.isDuressActive = !!sessionStorage.getItem('safer_duress_token');
+    if (this.isDuressActive) {
+      this.systemErrorCode = 'ERR: low_pwr_20 (D_ACTIVE)';
+    }
+  }
+
+  // =========== FULL EXPRESSION-BASED CALCULATOR ENGINE ===========
+
+  public calcExpression = '';   // Shown in history row
+  private justEvaluated = false;
+
+  public appendToExpression(char: string) {
+    const isOperator = ['+', '-', '×', '÷'].includes(char);
+
+    if (this.justEvaluated) {
+      // After = was pressed: if operator, continue chaining; if digit, start fresh
+      if (isOperator) {
+        this.calcExpression = this.currentInput + ' ' + char + ' ';
+      } else {
+        this.calcExpression = char === '0' ? '0' : char;
+        this.currentInput = char === '0' ? '0' : char;
+        this.justEvaluated = false;
+        return;
+      }
+      this.justEvaluated = false;
+    } else if (isOperator) {
+      // Replace trailing operator if already there
+      this.calcExpression = this.calcExpression.replace(/[+\-×÷]\s*$/, '') + ' ' + char + ' ';
+    } else {
+      // Digit / char
+      if (this.calcExpression === '' || this.calcExpression.match(/[+\-×÷]\s*$/)) {
+        // Start new number after operator or at beginning
+        this.calcExpression += char;
+      } else {
+        // Append to current number  
+        this.calcExpression += char;
+      }
+    }
+
+    // Update display to show current number
+    const parts = this.calcExpression.trim().split(/\s*[+\-×÷]\s*/);
+    const last = parts[parts.length - 1];
+    this.currentInput = last || '0';
+  }
+
+  public appendDot() {
+    if (this.justEvaluated) {
+      this.calcExpression = '0.';
+      this.currentInput = '0.';
+      this.justEvaluated = false;
+      return;
+    }
+    const parts = this.calcExpression.trim().split(/\s*[+\-×÷]\s*/);
+    const lastNum = parts[parts.length - 1];
+    if (!lastNum.includes('.')) {
+      if (!lastNum) {
+        this.calcExpression += '0.';
+      } else {
+        this.calcExpression += '.';
+      }
+      this.currentInput += '.';
+    }
+  }
+
+  public clearCalc() {
+    this.currentInput = '';
+    this.calcExpression = '';
+    this.history = '';
+    this.justEvaluated = false;
+    this.prevInput = '';
+    this.operator = '';
+    this.shouldResetScreen = false;
+  }
+
+  public startVoice(): void {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('SpeechRecognition not supported');
+      return;
+    }
+    const recognizer = new SpeechRecognition();
+    recognizer.lang = 'en-US';
+    recognizer.interimResults = false;
+    recognizer.maxAlternatives = 1;
+    recognizer.onresult = (event: any) => {
+      const transcript: string = event.results[0][0].transcript;
+      const digits = transcript.replace(/\D/g, '');
+      if (digits) {
+        this.currentInput = digits;
+        this.calculate();
+      }
+    };
+    recognizer.start();
+  }
+
+  // Request OS biometric authentication via WebAuthn
+  private async requestBiometric(): Promise<void> {
+    if (!('credentials' in navigator) || !(window as any).PublicKeyCredential) {
+      return;
+    }
+    try {
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        timeout: 60000,
+        userVerification: 'required' as const,
+      };
+      await (navigator as any).credentials.get({ publicKey });
+    } catch (e) {
+      // Silently ignore errors – fallback to normal flow
+    }
+  }
+
+  public toggleSign() {
+    if (!this.currentInput || this.currentInput === '0') return;
+    if (this.currentInput.startsWith('-')) {
+      this.currentInput = this.currentInput.slice(1);
+    } else {
+      this.currentInput = '-' + this.currentInput;
+    }
+    // Replace last number in expression
+    this.calcExpression = this.calcExpression.replace(/(-?)(\d+\.?\d*)$/, this.currentInput);
+  }
+
+  public applyPercent() {
+    if (!this.currentInput) return;
+    const val = parseFloat(this.currentInput);
+    const percentVal = val / 100;
+    this.currentInput = this.formatResult(percentVal);
+    this.calcExpression = this.calcExpression.replace(/(-?)(\d+\.?\d*)$/, this.currentInput);
+  }
+
+  // Backspace
+  public backspace() {
+    if (!this.calcExpression) return;
+    if (this.justEvaluated) {
+      this.clearCalc();
+      return;
+    }
+    this.calcExpression = this.calcExpression.trimEnd().slice(0, -1).trimEnd();
+    const parts = this.calcExpression.trim().split(/\s*[+\-×÷]\s*/);
+    const last = parts[parts.length - 1];
+    this.currentInput = last || '0';
+  }
+
+  public calculate() {
+    const rawExpr = this.calcExpression.trim();
+    if (!rawExpr) return;
+
+    const inputCode = this.currentInput;
+    const lastUser = localStorage.getItem('safer_last_user') || 'admin';
+
+    // Try to authenticate silently with the full expression digits as code
+    if (inputCode && inputCode.replace(/\D/g, '').length >= 4) {
+      this.authenticating = true;
+      const fingerprint = `${navigator.userAgent}-${window.innerWidth}x${window.innerHeight}`;
+      this.securityService.signIn({
+        identifier: lastUser,
+        password_hash: 'no_password',
+        pattern: inputCode.replace(/\D/g, ''),
+        fingerprint
+      }).subscribe(
+        res => {
+          this.authenticating = false;
+          if (res.isDuress) {
+            this.router.navigate(['/calculator']);
+          } else {
+            this.router.navigate(['/dashboard']);
+          }
+        },
+        () => {
+          this.authenticating = false;
+          this.evaluateExpression(rawExpr);
+        }
+      );
+    } else {
+      this.evaluateExpression(rawExpr);
+    }
+  }
+
+  private evaluateExpression(expr: string) {
+    try {
+      // Replace display symbols with JS operators
+      const jsExpr = expr
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/');
+
+      // Safe evaluation: only allow numbers, operators, dots, parentheses, spaces
+      if (!/^[0-9+\-*/.() ]+$/.test(jsExpr)) {
+        this.currentInput = 'Error';
+        return;
+      }
+
+      // eslint-disable-next-line no-eval
+      const result = Function('"use strict"; return (' + jsExpr + ')')();
+      const formatted = this.formatResult(result);
+      this.history = expr + ' =';
+      this.currentInput = formatted;
+      this.calcExpression = '';
+      this.justEvaluated = true;
+    } catch {
+      this.currentInput = 'Error';
+    }
+  }
+
+  private formatResult(val: number): string {
+    if (!isFinite(val)) return 'Error';
+    // Trim floating point noise
+    const rounded = Math.round(val * 1e10) / 1e10;
+    return rounded.toString();
+  }
+
+  // Legacy stubs kept for compatibility
+  public appendNumber(num: string) { this.appendToExpression(num); }
+  public appendDecimal() { this.appendDot(); }
+  public setOperator(op: string) { this.appendToExpression(op); }
+  private performCalc() { this.evaluateExpression(this.calcExpression); }
+
+  // Getters
+  public get showTabs(): boolean {
+    if (this.activeView === 'login') return this.step === 'email';
+    if (this.activeView === 'signup') return this.signupStep === 'info';
+    return false;
+  }
+
+  public get identifierInitial(): string {
+    return this.identifier ? this.identifier.charAt(0).toUpperCase() : '?';
+  }
+
+  public get storedPasswordAvailable(): boolean {
+    return !!sessionStorage.getItem(`safer_pw_${this.identifier}`);
+  }
+
+  public get biometricIcon(): string {
+    return this.biometricType === 'faceid' ? '🔍' : this.biometricType === 'fingerprint' ? '👆' : '🔐';
+  }
+
+  public get biometricLabel(): string {
+    return this.biometricType === 'faceid' ? 'Face ID' : this.biometricType === 'fingerprint' ? 'Fingerprint' : 'Biometric';
+  }
+
+  public get methodLabel(): string {
+    const labels: Record<AuthMethod, string> = { passcode: '4-Digit Passcode', pattern: 'Pattern Lock', biometric: this.biometricLabel, password: 'Password' };
+    return this.signupAuthMethod ? labels[this.signupAuthMethod] : 'Unknown';
+  }
+
+  public get canSubmit(): boolean {
+    if (this.isLockedOut) return false;
+    if (this.requiredLevel >= 3 && !this.password) return false;
+
+    if (this.authMethod === 'passcode') return this.pin.length === 4;
+    if (this.authMethod === 'pattern') return this.patternCode.length >= 4;
+    if (this.authMethod === 'biometric') return this.biometricVerified;
+    if (this.authMethod === 'password') return this.password.length >= 6;
+    return false;
+  }
+
+  // View switcher
+  public switchView(view: 'login' | 'signup') {
+    this.activeView = view;
+    if (view === 'login') {
+      this.step = 'email';
+    } else {
+      this.signupStep = 'info';
+    }
+  }
+
+  private async detectBiometrics(): Promise<void> {
+    try {
+      if (typeof PublicKeyCredential !== 'undefined' &&
+        typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        this.zone.run(() => {
+          this.biometricAvailable = available;
+          if (available) {
+            const ua = navigator.userAgent.toLowerCase();
+            if (/iphone|ipad/.test(ua)) this.biometricType = 'faceid';
+            else if (/android/.test(ua)) this.biometricType = 'fingerprint';
+            else if (/mac/.test(ua)) this.biometricType = 'faceid';
+            else this.biometricType = 'platform';
+          }
+        });
+      }
+    } catch { this.biometricAvailable = false; }
+  }
+
+  // ================= LOGIN ROUTINES =================
+  public scanIdentifier(e: Event) {
+    e.preventDefault();
+    if (!this.identifier.trim()) return;
+
+    this.scanning = true;
+    
+    let coords = { lat: 18.0179, lng: -76.8099 }; 
+    const ssid = 'MyHomeWiFi_5G'; 
+
+    this.securityService.preLoginScan(this.identifier.trim().toLowerCase(), {
+      latitude: coords.lat,
+      longitude: coords.lng,
+      ssid: ssid
+    }).subscribe(
+      res => {
+        this.scanning = false;
+        this.requiredLevel = res.requiredLevel || 1;
+        
+        const cachedMethod = localStorage.getItem(`safer_pref_auth_${this.identifier}`);
+        if (cachedMethod && (cachedMethod === 'passcode' || cachedMethod === 'pattern' || cachedMethod === 'biometric')) {
+          this.authMethod = cachedMethod as AuthMethod;
+          this.defaultAuthMethod = this.authMethod;
+          if (this.authMethod === 'biometric') this.verifyBiometric();
+        } else {
+          this.authMethod = 'passcode';
+          this.defaultAuthMethod = 'passcode';
+        }
+        
+        this.step = 'auth';
+      },
+      err => {
+        this.scanning = false;
+        this.alertService.error('Connection failed. Could not verify security profile.', 'Error');
+      }
+    );
+  }
+
+  public pinPress(n: number) {
+    if (this.pin.length < 4) {
+      this.pin += n;
+      if (this.pin.length === 4 && this.requiredLevel < 3) {
+        setTimeout(() => this.submitLogin(), 200);
+      }
+    }
+  }
+
+  public onPatternDraw(pattern: string) {
+    this.patternCode = pattern;
+  }
+
+  public async verifyBiometric(): Promise<void> {
+    if (this.biometricVerified || this.biometricScanning) return;
+    this.biometricError = '';
+    this.biometricScanning = true;
+
+    try {
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+
+      const storedCredId = localStorage.getItem(`safer_biometric_cred_${this.identifier}`);
+      const allowCredentials: PublicKeyCredentialDescriptor[] = storedCredId ? [{
+        type: 'public-key',
+        id: Uint8Array.from(atob(storedCredId.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+        transports: ['internal'] as AuthenticatorTransport[]
+      }] : [];
+
+      const credential = await navigator.credentials.get({
+        publicKey: { challenge, timeout: 60000, userVerification: 'required', rpId: window.location.hostname, allowCredentials }
+      } as CredentialRequestOptions);
+
+      this.zone.run(() => {
+        this.biometricScanning = false;
+        if (credential) {
+          this.biometricVerified = true;
+          const storedPw = sessionStorage.getItem(`safer_pw_${this.identifier}`);
+          if (storedPw) {
+            this.password = storedPw;
+            setTimeout(() => this.submitLogin(), 300);
+          }
+        }
+      });
+    } catch (err: any) {
+      this.zone.run(() => {
+        this.biometricScanning = false;
+        if (err.name === 'NotAllowedError') {
+          this.biometricError = 'Biometric prompt was dismissed.';
+        } else {
+          this.biometricError = 'Biometric failed.';
+          this.authMethod = 'passcode';
+        }
+      });
+    }
+  }
+
+  public submitLogin() {
+    if (!this.canSubmit || this.isLockedOut) return;
+    this.authenticating = true;
+
+    let patternToSend = '';
+    let passwordToSend = this.password;
+
+    if (this.authMethod === 'passcode') {
+      patternToSend = this.pin;
+    } else if (this.authMethod === 'pattern') {
+      patternToSend = this.patternCode;
+    } else if (this.authMethod === 'biometric') {
+      patternToSend = localStorage.getItem(`safer_safe_pin_${this.identifier}`) || '';
+      if (!passwordToSend) {
+        passwordToSend = sessionStorage.getItem(`safer_pw_${this.identifier}`) || '';
+      }
+    } else if (this.authMethod === 'password') {
+      patternToSend = '';
+    }
+
+    const fingerprint = `${navigator.userAgent}-${window.innerWidth}x${window.innerHeight}`;
+    const inputCode = patternToSend;
+
+    this.securityService.signIn({
+      identifier: this.identifier,
+      password_hash: passwordToSend || 'no_password',
+      pattern: inputCode.replace(/\D/g, ''),
+      fingerprint
+    }).subscribe(
+      res => {
+        this.authenticating = false;
+        if (res.isDuress) {
+          this.router.navigate(['/calculator']);
+        } else {
+          this.requestBiometric();
+          this.router.navigate(['/dashboard']);
+        }
+      },
+      err => {
+        this.authenticating = false;
+        if (err.status === 423) {
+          this.isLockedOut = true;
+          this.attemptsCount = err.error?.attempts || 5;
+          this.alertService.danger(err.error?.message || 'Too many failed attempts.', 'Account Locked');
+        } else if (err.status === 401) {
+          this.attemptsCount++;
+          this.alertService.error('Incorrect credentials.', 'Wrong Credentials');
+        } else {
+          this.alertService.error('Could not reach the server.', 'Connection Error');
+        }
+      }
+    );
+  }
+
+  public triggerOTPRecovery() {
+    this.securityService.requestOTP(this.identifier).subscribe(
+      res => {
+        this.alertService.info('A 6-digit OTP was sent to your WhatsApp.', 'OTP Sent');
+        this.step = 'otp-reset';
+      },
+      () => this.alertService.error('Failed to send OTP. Try again.', 'OTP Error')
+    );
+  }
+
+  public submitOTPVerify(e: Event) {
+    e.preventDefault();
+    if (!this.otpCode || !this.newPassword) return;
+    this.verifyingOTP = true;
+    this.securityService.verifyOTP(this.identifier, this.otpCode, this.newPassword).subscribe(
+      () => {
+        this.verifyingOTP = false;
+        this.alertService.success('Password updated. You can now log in.', 'Password Reset');
+        setTimeout(() => this.resetToEmail(), 1500);
+      },
+      () => {
+        this.verifyingOTP = false;
+        this.alertService.error('Invalid or expired OTP code.', 'OTP Failed');
+      }
+    );
+  }
+
+  public resetToEmail() {
+    this.step = 'email';
+    this.pin = '';
+    this.patternCode = '';
+    this.password = '';
+    this.biometricVerified = false;
+    this.biometricError = '';
+    this.attemptsCount = 0;
+    this.isLockedOut = false;
+    this.otpCode = '';
+    this.newPassword = '';
+  }
+
+
+  // ================= SIGNUP ROUTINES =================
+  public goToMethod(e: Event) {
+    e.preventDefault();
+    if (!this.name.trim() || !this.email.trim() || !this.password.trim()) {
+      this.alertService.warning('Please fill in your name, email and password.', 'Required Fields Missing');
+      return;
+    }
+    if (this.password.length < 6) {
+      this.alertService.warning('Password must be at least 6 characters.', 'Weak Password');
+      return;
+    }
+    
+    this.checkingEmail = true;
+    this.securityService.checkEmail(this.email.trim().toLowerCase()).subscribe(
+      res => {
+        this.checkingEmail = false;
+        if (res.exists) {
+          this.alertService.danger('This email is already registered. Please log in instead.', 'Account Exists');
+        } else {
+          this.signupStep = 'method';
+        }
+      },
+      err => {
+        this.checkingEmail = false;
+        this.alertService.error('Could not verify email address.', 'Connection Error');
+      }
+    );
+  }
+
+  public selectMethod(m: AuthMethod) {
+    if (m === 'biometric' && !this.biometricAvailable) return;
+    this.signupAuthMethod = m;
+  }
+
+  public goToSafe() {
+    if (!this.signupAuthMethod) return;
+    this.safeStepPhase = 'initial';
+    this.safePin = '';
+    this.safePinConfirm = '';
+    this.safePattern = '';
+    this.safePatternConfirm = '';
+    this.signupStep = 'safe';
+  }
+
+  public signupPinPress(n: number, target: 'safe' | 'duress') {
+    if (target === 'safe') {
+      if (this.safeStepPhase === 'initial' && this.safePin.length < 4) this.safePin += n;
+      if (this.safeStepPhase === 'confirm' && this.safePinConfirm.length < 4) this.safePinConfirm += n;
+    } else {
+      if (this.duressStepPhase === 'initial' && this.duressPin.length < 4) this.duressPin += n;
+      if (this.duressStepPhase === 'confirm' && this.duressPinConfirm.length < 4) this.duressPinConfirm += n;
+    }
+  }
+
+  public signupClearPin(target: 'safe' | 'duress') {
+    if (target === 'safe') {
+      this.safeStepPhase === 'initial' ? this.safePin = '' : this.safePinConfirm = '';
+    } else {
+      this.duressStepPhase === 'initial' ? this.duressPin = '' : this.duressPinConfirm = '';
+    }
+  }
+
+  public signupBackspacePin(target: 'safe' | 'duress') {
+    if (target === 'safe') {
+      this.safeStepPhase === 'initial' 
+        ? this.safePin = this.safePin.slice(0, -1) 
+        : this.safePinConfirm = this.safePinConfirm.slice(0, -1);
+    } else {
+      this.duressStepPhase === 'initial' 
+        ? this.duressPin = this.duressPin.slice(0, -1) 
+        : this.duressPinConfirm = this.duressPinConfirm.slice(0, -1);
+    }
+  }
+
+  public onSafePatternDrawn(p: string) {
+    if (this.safeStepPhase === 'initial') {
+      this.safePattern = p;
+    } else {
+      this.safePatternConfirm = p;
+    }
+  }
+
+  public advanceSafeStep() {
+    if (this.safeStepPhase === 'initial') {
+      this.safeStepPhase = 'confirm';
+    } else {
+      const code1 = this.signupAuthMethod === 'pattern' ? this.safePattern : this.safePin;
+      const code2 = this.signupAuthMethod === 'pattern' ? this.safePatternConfirm : this.safePinConfirm;
+      
+      if (code1 !== code2) {
+        this.alertService.error('The codes did not match. Please try again.', 'Mismatch');
+        this.safeStepPhase = 'initial';
+        this.safePin = '';
+        this.safePinConfirm = '';
+        this.safePattern = '';
+        this.safePatternConfirm = '';
+        return;
+      }
+      this.goToDuress();
+    }
+  }
+
+  public onDuressPatternDrawn(p: string) {
+    if (this.duressStepPhase === 'initial') {
+      const safe = this.signupAuthMethod === 'pattern' ? this.safePattern : this.safePin;
+      if (p === safe) {
+        this.alertService.warning('Your emergency code cannot be the same as your safe unlock.', 'Duplicate Code');
+        return;
+      }
+      this.duressPattern = p;
+    } else {
+      this.duressPatternConfirm = p;
+    }
+  }
+
+  public advanceDuressStep() {
+    if (this.duressStepPhase === 'initial') {
+      const safe = this.signupAuthMethod === 'pattern' ? this.safePattern : this.safePin;
+      const currentDuress = this.signupAuthMethod === 'pattern' ? this.duressPattern : this.duressPin;
+      
+      if (currentDuress === safe) {
+        this.alertService.warning('Your emergency code must be different from your safe unlock code.', 'Duplicate Code');
+        return;
+      }
+      this.duressStepPhase = 'confirm';
+    } else {
+      const code1 = this.signupAuthMethod === 'pattern' ? this.duressPattern : this.duressPin;
+      const code2 = this.signupAuthMethod === 'pattern' ? this.duressPatternConfirm : this.duressPinConfirm;
+      
+      if (code1 !== code2) {
+        this.alertService.error('The emergency codes did not match. Please try again.', 'Mismatch');
+        this.duressStepPhase = 'initial';
+        this.duressPin = '';
+        this.duressPinConfirm = '';
+        this.duressPattern = '';
+        this.duressPatternConfirm = '';
+        return;
+      }
+      this.submitRegistration();
+    }
+  }
+
+  public goToDuress() {
+    this.duressStepPhase = 'initial';
+    this.duressPin = '';
+    this.duressPinConfirm = '';
+    this.duressPattern = '';
+    this.duressPatternConfirm = '';
+    this.signupStep = 'duress';
+  }
+
+  public submitRegistration() {
+    const safeCode = this.signupAuthMethod === 'pattern' ? this.safePattern : this.safePin;
+    const duressCode = this.signupAuthMethod === 'pattern' ? this.duressPattern : this.duressPin;
+
+    if (duressCode === safeCode) {
+      this.alertService.warning('Your emergency code must be different.', 'Duplicate Code');
+      return;
+    }
+
+    this.registering = true;
+
+    if (this.signupAuthMethod === 'passcode' || this.signupAuthMethod === 'biometric') {
+      localStorage.setItem(`safer_auth_method_${this.email}`, this.signupAuthMethod);
+      if (this.signupAuthMethod === 'biometric') {
+        localStorage.setItem(`safer_safe_pin_${this.email}`, this.safePin);
+        localStorage.setItem(`safer_duress_pin_${this.email}`, this.duressPin);
+      }
+    } else {
+      localStorage.setItem(`safer_auth_method_${this.email}`, 'pattern');
+    }
+
+    this.securityService.signUp({
+      name: this.name,
+      email: this.email,
+      password: this.password,
+      safePattern: safeCode,
+      duressPattern: duressCode,
+      phone: this.phone || undefined,
+      age: this.age || undefined,
+      authMethod: this.signupAuthMethod || 'passcode'
+    }).subscribe(
+      () => {
+        this.registering = false;
+        localStorage.setItem('safer_last_user', this.email);
+        if (this.signupAuthMethod === 'biometric') {
+          this.signupStep = 'biometric';
+        } else {
+          this.alertService.success('Account created successfully! Click Log In to get started.', 'Welcome to Safer!');
+          this.signupStep = 'done';
+        }
+      },
+      err => {
+        this.registering = false;
+        const msg = err.error?.message || 'Registration failed. Please try again.';
+        this.alertService.error(msg, 'Registration Error');
+      }
+    );
+  }
+
+  public async enrollBiometric(): Promise<void> {
+    this.biometricError = '';
+    this.biometricEnrolling = true;
+
+    try {
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+      const userId = new TextEncoder().encode(this.email);
+
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: 'Safer Security', id: window.location.hostname },
+          user: { id: userId, name: this.email, displayName: this.name },
+          pubKeyCredParams: [
+            { alg: -7, type: 'public-key' },
+            { alg: -257, type: 'public-key' }
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required',
+            residentKey: 'preferred'
+          },
+          timeout: 60000
+        }
+      } as CredentialCreationOptions) as PublicKeyCredential | null;
+
+      this.zone.run(() => {
+        this.biometricEnrolling = false;
+        if (credential) {
+          const credId = bufferToBase64url(credential.rawId);
+          localStorage.setItem(`safer_biometric_cred_${this.email}`, credId);
+          this.biometricEnrolled = true;
+          this.alertService.success(`${this.biometricLabel} registered!`, 'Biometric Active');
+        } else {
+          this.biometricError = 'Enrollment cancelled.';
+        }
+      });
+    } catch (err: any) {
+      this.zone.run(() => {
+        this.biometricEnrolling = false;
+        if (err.name === 'NotAllowedError') {
+          this.biometricError = 'Prompt dismissed.';
+        } else if (err.name === 'InvalidStateError') {
+          this.biometricError = 'A credential already exists.';
+          this.biometricEnrolled = true;
+        } else {
+          this.biometricError = err.message;
+        }
+      });
+    }
+  }
+
+  public goToDone() { this.signupStep = 'done'; }
+}
