@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const http = require('http');
+const https = require('https');
 const WebSocket = require('ws');
 const cron = require('node-cron');
 
@@ -940,6 +941,172 @@ app.get('/api/family/dashboard', requireAuth, async (req, res) => {
     console.error('Family dashboard error:', err);
     res.status(500).json({ error: 'Failed to load family dashboard' });
   }
+});
+
+// ----------------------------------------------------
+// AI Risk Forecast Endpoint
+// ----------------------------------------------------
+
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+function getSunriseHour(lat) {
+  // Simple civil twilight approx based on latitude
+  // Returns hours (24h local) when dark begins and ends
+  const abs = Math.abs(lat);
+  if (abs < 15) return { darkStart: 19, darkEnd: 6 };
+  if (abs < 30) return { darkStart: 19.5, darkEnd: 5.5 };
+  if (abs < 45) return { darkStart: 20, darkEnd: 5 };
+  return { darkStart: 20.5, darkEnd: 5 };
+}
+
+app.post('/api/risk-forecast', requireAuth, async (req, res) => {
+  const { lat, lng, batteryLevel, routeName } = req.body;
+  if (!lat || !lng) return res.status(400).json({ error: 'Missing coordinates' });
+
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  const factors = [];
+  let riskScore = 0; // 0 = safest, 100 = most dangerous
+
+  // 1. WEATHER FACTOR — via OpenWeatherMap
+  let weather = null;
+  try {
+    if (apiKey && apiKey !== 'your_openweathermap_api_key_here') {
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric`;
+      weather = await fetchJSON(url);
+    }
+  } catch (e) {
+    console.warn('[Risk Forecast] Weather API failed:', e.message);
+  }
+
+  if (weather) {
+    const weatherId = weather.weather?.[0]?.id || 800;
+    const desc = weather.weather?.[0]?.description || 'Clear';
+    const windSpeed = weather.wind?.speed || 0;
+    const visibility = weather.visibility || 10000;
+
+    // Thunderstorm (2xx)
+    if (weatherId < 300) {
+      riskScore += 30;
+      factors.push({ icon: '⛈️', label: 'Thunderstorm', severity: 'critical' });
+    }
+    // Drizzle/Rain (3xx, 5xx)
+    else if (weatherId < 400 || (weatherId >= 500 && weatherId < 600)) {
+      const heavy = weatherId >= 502;
+      riskScore += heavy ? 20 : 10;
+      factors.push({ icon: '🌧️', label: heavy ? 'Heavy Rain' : 'Light Rain', severity: heavy ? 'high' : 'medium' });
+    }
+    // Snow (6xx)
+    else if (weatherId >= 600 && weatherId < 700) {
+      riskScore += 20;
+      factors.push({ icon: '❄️', label: 'Snow / Ice', severity: 'high' });
+    }
+    // Fog/Mist (7xx)
+    else if (weatherId >= 700 && weatherId < 800) {
+      riskScore += 15;
+      factors.push({ icon: '🌫️', label: 'Low Visibility', severity: 'medium' });
+    }
+    // Clear
+    else if (weatherId === 800) {
+      factors.push({ icon: '☀️', label: 'Clear Weather', severity: 'safe' });
+    }
+    // Clouds
+    else {
+      riskScore += 3;
+      factors.push({ icon: '⛅', label: 'Cloudy', severity: 'low' });
+    }
+
+    // High winds
+    if (windSpeed > 10) {
+      riskScore += 10;
+      factors.push({ icon: '💨', label: `High Winds (${windSpeed.toFixed(0)} m/s)`, severity: 'medium' });
+    }
+
+    // Poor visibility
+    if (visibility < 1000) {
+      riskScore += 15;
+      factors.push({ icon: '🌁', label: 'Near-Zero Visibility', severity: 'critical' });
+    }
+  } else {
+    // No weather data available
+    factors.push({ icon: '🌐', label: 'Weather Unavailable', severity: 'unknown' });
+    riskScore += 5; // small bump for uncertainty
+  }
+
+  // 2. DARKNESS FACTOR — based on local hour and lat
+  const nowUTC = new Date();
+  const localHour = nowUTC.getUTCHours(); // approximate local time by UTC (refined by lat timezone if needed)
+  const { darkStart, darkEnd } = getSunriseHour(lat);
+  const isDark = localHour >= darkStart || localHour < darkEnd;
+  if (isDark) {
+    riskScore += 20;
+    factors.push({ icon: '🌙', label: 'Low Lighting / Darkness', severity: 'high' });
+  } else if (localHour < darkEnd + 1.5 || localHour > darkStart - 1.5) {
+    riskScore += 8;
+    factors.push({ icon: '🌅', label: 'Dim Lighting (Dusk/Dawn)', severity: 'medium' });
+  } else {
+    factors.push({ icon: '💡', label: 'Good Lighting', severity: 'safe' });
+  }
+
+  // 3. BATTERY FACTOR
+  const bat = batteryLevel !== undefined ? batteryLevel : 100;
+  if (bat <= 10) {
+    riskScore += 25;
+    factors.push({ icon: '🪫', label: 'Critical Battery', severity: 'critical' });
+  } else if (bat <= 20) {
+    riskScore += 18;
+    factors.push({ icon: '🔋', label: 'Low Battery', severity: 'high' });
+  } else if (bat <= 40) {
+    riskScore += 8;
+    factors.push({ icon: '🔋', label: 'Moderate Battery', severity: 'medium' });
+  } else {
+    factors.push({ icon: '⚡', label: `Battery ${bat}%`, severity: 'safe' });
+  }
+
+  // 4. ROUTE / TIME FACTOR
+  const isLateNight = localHour >= 22 || localHour < 5;
+  if (isLateNight) {
+    riskScore += 15;
+    factors.push({ icon: '🌃', label: 'Late Night Travel', severity: 'high' });
+  } else if (localHour < 7) {
+    riskScore += 8;
+    factors.push({ icon: '🌄', label: 'Early Morning Travel', severity: 'medium' });
+  } else {
+    factors.push({ icon: '🕐', label: 'Standard Hours', severity: 'safe' });
+  }
+
+  // Clamp score to 0-100
+  riskScore = Math.min(100, Math.max(0, riskScore));
+  const safetyRating = Math.round(100 - riskScore);
+
+  let overallLevel;
+  if (safetyRating >= 80) overallLevel = 'safe';
+  else if (safetyRating >= 60) overallLevel = 'moderate';
+  else if (safetyRating >= 40) overallLevel = 'elevated';
+  else overallLevel = 'high';
+
+  res.json({
+    success: true,
+    safetyRating,
+    overallLevel,
+    factors,
+    weather: weather ? {
+      description: weather.weather?.[0]?.description,
+      temp: weather.main?.temp,
+      humidity: weather.main?.humidity
+    } : null,
+    disclaimer: 'This is AI-generated guidance based on available data and should not replace personal judgement.'
+  });
 });
 
 // Transit expiration checker

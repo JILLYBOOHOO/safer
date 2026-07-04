@@ -22,6 +22,7 @@ import { FakeCallComponent } from './components/fake-call/fake-call.component';
 import { IncidentLogComponent } from './components/incident-log/incident-log.component';
 import { LocationManagerComponent } from './components/location-manager/location-manager.component';
 import { GuardianDashboardComponent } from './components/guardian-dashboard/guardian-dashboard.component';
+import { RiskForecastComponent } from './components/risk-forecast/risk-forecast.component';
 
 @NgModule({
   declarations: [
@@ -39,7 +40,8 @@ import { GuardianDashboardComponent } from './components/guardian-dashboard/guar
     FakeCallComponent,
     IncidentLogComponent,
     LocationManagerComponent,
-    GuardianDashboardComponent
+    GuardianDashboardComponent,
+    RiskForecastComponent
   ],
   imports: [
     BrowserModule,

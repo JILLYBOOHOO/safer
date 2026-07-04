@@ -7,6 +7,7 @@ import { BluetoothWearablesService } from '../../services/bluetooth-wearables.se
 import { TransitCheckService } from '../../services/transit-check.service';
 import { FallDetectionService } from '../../services/fall-detection.service';
 import { RouteAiService } from '../../services/route-ai.service';
+import { RiskForecastService } from '../../services/risk-forecast.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -15,6 +16,14 @@ import { Subscription } from 'rxjs';
     <main class="container">
 
     <main class="container">
+
+      <!-- AI Risk Forecast Overlay -->
+      <app-risk-forecast
+        *ngIf="showRiskForecast"
+        [routeName]="transitRoute"
+        (startWalk)="onForecastStartWalk()"
+        (dismissed)="showRiskForecast = false">
+      </app-risk-forecast>
 
       <!-- Velocity Zero Alert Overlay -->
       <div *ngIf="showVelocityAlert" class="velocity-alert-overlay fade-in" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(239,68,68,0.95); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;">
@@ -113,7 +122,7 @@ import { Subscription } from 'rxjs';
               <div *ngIf="!transitActive" style="display: flex; gap: 8px;">
                 <input type="number" [(ngModel)]="transitMinutes" placeholder="Mins" style="width: 80px; padding: 8px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.3); background: #000; color: #fff;">
                 <input type="text" [(ngModel)]="transitRoute" placeholder="e.g. Walking Home" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid rgba(0,240,255,0.3); background: #000; color: #fff;">
-                <button class="btn-accessible" style="background: #00f0ff; color: #000; font-weight: bold; border: none; padding: 8px 16px; border-radius: 8px;" (click)="startTransit()">Start</button>
+                <button class="btn-accessible" style="background: #00f0ff; color: #000; font-weight: bold; border: none; padding: 8px 16px; border-radius: 8px;" (click)="openRiskForecast()">AI Check</button>
               </div>
               <div *ngIf="transitActive" style="display: flex; gap: 12px; align-items: center;">
                 <span style="font-size: 24px; font-weight: bold; color: #ef4444; font-family: monospace;">{{ transitDisplay }}</span>
@@ -701,6 +710,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   public transitDisplay = '00:00';
   private transitInterval: any;
 
+  public showRiskForecast = false;
   public velocityTracking = false;
   public showVelocityAlert = false;
   public velocityAlertCountdown = 60;
@@ -771,7 +781,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     public bluetoothWearablesService: BluetoothWearablesService,
     private transitCheckService: TransitCheckService,
     private fallDetectionService: FallDetectionService,
-    private routeAiService: RouteAiService
+    private routeAiService: RouteAiService,
+    private riskForecastService: RiskForecastService
   ) {
     window.addEventListener('online', () => this.isOnline = true);
     window.addEventListener('offline', () => this.isOnline = false);
@@ -853,6 +864,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   // ================= TRANSIT & VELOCITY LOGIC =================
+
+  public openRiskForecast() {
+    if (!this.transitMinutes || this.transitMinutes <= 0) {
+      this.alertService.warning('Please enter a transit duration first.');
+      return;
+    }
+    this.showRiskForecast = true;
+  }
+
+  public onForecastStartWalk() {
+    this.showRiskForecast = false;
+    this.startTransit();
+  }
 
   public startTransit() {
     if (!this.transitMinutes || this.transitMinutes <= 0) return;

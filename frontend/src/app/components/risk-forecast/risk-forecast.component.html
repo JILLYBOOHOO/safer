@@ -1,0 +1,66 @@
+<div class="rf-overlay">
+  <div class="rf-modal">
+
+    <!-- Loading State -->
+    <div class="rf-loading" *ngIf="loading">
+      <div class="rf-spinner"></div>
+      <p>Analyzing local conditions...</p>
+    </div>
+
+    <!-- Loaded State -->
+    <ng-container *ngIf="!loading && forecast">
+      <div class="rf-header">
+        <h2>🔮 AI Risk Forecast</h2>
+        <p class="rf-route" *ngIf="routeName">Route: <strong>{{ routeName }}</strong></p>
+      </div>
+
+      <!-- Safety Rating Gauge -->
+      <div class="rf-gauge-wrap">
+        <svg class="rf-gauge" viewBox="0 0 110 110">
+          <circle class="rf-gauge-bg" cx="55" cy="55" r="48" />
+          <circle
+            class="rf-gauge-fill"
+            cx="55" cy="55" r="48"
+            [attr.stroke]="getRatingColor()"
+            [attr.stroke-dasharray]="circumference"
+            [attr.stroke-dashoffset]="dashOffset"
+          />
+        </svg>
+        <div class="rf-gauge-center">
+          <span class="rf-rating-num" [style.color]="getRatingColor()">
+            {{ forecast.safetyRating }}%
+          </span>
+          <span class="rf-rating-label" [style.color]="getRatingColor()">
+            {{ getRatingLabel() }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Weather line -->
+      <div class="rf-weather-line" *ngIf="forecast.weather">
+        <span>🌡️ {{ forecast.weather.temp | number:'1.0-0' }}°C &nbsp;·&nbsp; {{ forecast.weather.description | titlecase }}</span>
+      </div>
+
+      <!-- Risk Factors -->
+      <div class="rf-factors">
+        <div class="rf-factor" *ngFor="let f of forecast.factors" [class]="getSeverityClass(f.severity)">
+          <span class="rf-factor-icon">{{ f.icon }}</span>
+          <span class="rf-factor-label">{{ f.label }}</span>
+          <span class="rf-sev-dot"></span>
+        </div>
+      </div>
+
+      <!-- Disclaimer -->
+      <p class="rf-disclaimer">{{ forecast.disclaimer }}</p>
+
+      <!-- Actions -->
+      <div class="rf-actions">
+        <button class="rf-btn-dismiss" (click)="onDismiss()">Not Now</button>
+        <button class="rf-btn-start" (click)="onStart()">
+          <span>🛡️</span> Start Safe Walk
+        </button>
+      </div>
+    </ng-container>
+
+  </div>
+</div>
