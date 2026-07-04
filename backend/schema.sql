@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS family_links (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  guardian_user_id INT NOT NULL,
+  dependent_user_id INT NOT NULL,
+  relationship VARCHAR(50) NOT NULL, -- e.g., 'parent', 'child', 'spouse'
+  status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'accepted'
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (guardian_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (dependent_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS failed_logins (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email_hash VARCHAR(64) NOT NULL,
@@ -92,8 +103,10 @@ CREATE TABLE IF NOT EXISTS transit_events (
   user_id TEXT NOT NULL,
   start_time TEXT NOT NULL,
   end_time TEXT,
-  path TEXT,            -- JSON array of lat/lng points
-  flagged INTEGER DEFAULT 0
+  path TEXT,            -- JSON array of {lat, lng, timestamp, speed, battery_level}
+  flagged INTEGER DEFAULT 0,
+  last_battery_level INT NULL,
+  last_speed DOUBLE NULL
 );
 
 CREATE TABLE IF NOT EXISTS checkins (

@@ -877,6 +877,71 @@ app.post('/api/transit/stop', requireAuth, async (req, res) => {
   res.json({ success: true, message: 'Transit timer disarmed' });
 });
 
+app.post('/api/transit/ping', requireAuth, async (req, res) => {
+  const { lat, lng, speed, battery, timestamp } = req.body;
+  if (activeTransits.has(req.user.id)) {
+    const transit = activeTransits.get(req.user.id);
+    transit.lastPing = { lat, lng, speed, battery, timestamp: timestamp || Date.now() };
+  }
+  // Store ping in DB
+  try {
+    const activeSql = `UPDATE transit_events SET last_battery_level = ?, last_speed = ? WHERE user_id = ? AND end_time IS NULL`;
+    await db.query(activeSql, [battery, speed, req.user.id]);
+  } catch (err) {
+    console.error('Failed to update DB transit ping', err);
+  }
+  res.json({ success: true });
+});
+
+// ----------------------------------------------------
+// Family Guardianship Endpoints
+// ----------------------------------------------------
+
+app.post('/api/family/invite', requireAuth, async (req, res) => {
+  const { contactPhone, relationship } = req.body;
+  if (!contactPhone) return res.status(400).json({ error: 'Missing phone number' });
+
+  // In production, this would contain a secure registration deep-link or OTP.
+  const inviteLink = `https://safer-app.local/signup?guardian=${req.user.id}&rel=${relationship}`;
+  const inviteMessage = `🛡️ *Safer Guardian Invite*\n\nYou've been invited to join the Safer Guardian Network as a ${relationship || 'family member'}. \n\nRegister here to share live location and safety status: ${inviteLink}`;
+
+  try {
+    await sendMessage(contactPhone, inviteMessage);
+    res.json({ success: true, message: 'Invite dispatched via WhatsApp.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to dispatch invite' });
+  }
+});
+
+app.get('/api/family/dashboard', requireAuth, async (req, res) => {
+  try {
+    // Fetch dependents where the current user is the guardian
+    const depsSql = `
+      SELECT u.id, u.name_encrypted, u.age, t.last_battery_level, t.last_speed, t.start_time
+      FROM family_links f
+      JOIN users u ON f.dependent_user_id = u.id
+      LEFT JOIN transit_events t ON t.user_id = u.id AND t.end_time IS NULL
+      WHERE f.guardian_user_id = ? AND f.status = 'accepted'
+    `;
+    const dependents = await db.query(depsSql, [req.user.id]);
+    
+    // Map encrypted names
+    const mapped = dependents.map(d => ({
+      id: d.id,
+      name: d.name_encrypted ? decrypt(d.name_encrypted) : 'Unknown',
+      age: d.age,
+      battery: d.last_battery_level || null,
+      speed: d.last_speed || null,
+      inTransit: !!d.start_time
+    }));
+
+    res.json({ success: true, dependents: mapped });
+  } catch (err) {
+    console.error('Family dashboard error:', err);
+    res.status(500).json({ error: 'Failed to load family dashboard' });
+  }
+});
+
 // Transit expiration checker
 cron.schedule('* * * * *', async () => {
   const now = Date.now();

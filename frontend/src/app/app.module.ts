@@ -21,6 +21,7 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { FakeCallComponent } from './components/fake-call/fake-call.component';
 import { IncidentLogComponent } from './components/incident-log/incident-log.component';
 import { LocationManagerComponent } from './components/location-manager/location-manager.component';
+import { GuardianDashboardComponent } from './components/guardian-dashboard/guardian-dashboard.component';
 
 @NgModule({
   declarations: [
@@ -37,7 +38,8 @@ import { LocationManagerComponent } from './components/location-manager/location
     SidebarComponent,
     FakeCallComponent,
     IncidentLogComponent,
-    LocationManagerComponent
+    LocationManagerComponent,
+    GuardianDashboardComponent
   ],
   imports: [
     BrowserModule,

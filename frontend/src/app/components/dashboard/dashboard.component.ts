@@ -5,6 +5,8 @@ import { HttpClient } from '@angular/common/http';
 import { AlertService } from '../../services/alert.service';
 import { BluetoothWearablesService } from '../../services/bluetooth-wearables.service';
 import { TransitCheckService } from '../../services/transit-check.service';
+import { FallDetectionService } from '../../services/fall-detection.service';
+import { RouteAiService } from '../../services/route-ai.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -18,7 +20,7 @@ import { Subscription } from 'rxjs';
       <div *ngIf="showVelocityAlert" class="velocity-alert-overlay fade-in" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(239,68,68,0.95); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;">
         <div style="font-size: 64px; margin-bottom: 24px;">⚠️</div>
         <h1 style="color: white; font-size: 32px; font-weight: 900; margin-bottom: 12px; text-align: center;">Are you okay?</h1>
-        <p style="color: white; font-size: 18px; text-align: center; margin-bottom: 32px;">We detected you stopped moving. SOS will trigger in {{ velocityAlertCountdown }}s.</p>
+        <p style="color: white; font-size: 18px; text-align: center; margin-bottom: 32px;">{{ overlayMessage }} SOS will trigger in {{ velocityAlertCountdown }}s.</p>
         <button class="btn-accessible" style="background: white; color: #ef4444; font-size: 24px; font-weight: bold; padding: 16px 48px; border-radius: 50px; border: none; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.3);" (click)="dismissVelocityAlert()">
           I'm Safe
         </button>
@@ -474,6 +476,11 @@ import { Subscription } from 'rxjs';
         </section>
       </div>
 
+      <!-- ============ TAB: FAMILY ============ -->
+      <div *ngIf="activeTab === 'family'" class="tab-content">
+        <app-guardian-dashboard></app-guardian-dashboard>
+      </div>
+
     </main>
   `,
   styles: [`
@@ -685,7 +692,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   public user: User | null = null;
   public sessions: any[] = [];
   public emergencyContacts: any[] = [];
-  public activeTab: 'overview' | 'profile' | 'medical' | 'contact' | 'places' | 'diagnostics' | 'devices' = 'overview';
+  public activeTab: 'overview' | 'profile' | 'medical' | 'contact' | 'places' | 'diagnostics' | 'devices' | 'family' = 'overview';
 
   // Transit & Velocity UI State
   public transitActive = false;
@@ -697,6 +704,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   public velocityTracking = false;
   public showVelocityAlert = false;
   public velocityAlertCountdown = 60;
+  public overlayMessage = 'We detected you stopped moving.';
+  public overlayInterval: any;
   private velocityAlertInterval: any;
   private transitSub: Subscription | null = null;
 
@@ -707,7 +716,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { id: 'contact', icon: '📞', label: 'Emergency Contact' },
     { id: 'places', icon: '📍', label: 'Safe Zones' },
     { id: 'diagnostics', icon: '🛠️', label: 'Diagnostics' },
-    { id: 'devices', icon: '⌚', label: 'Devices' }
+    { id: 'devices', icon: '⌚', label: 'Devices' },
+    { id: 'family', icon: '👨‍👩‍👧', label: 'Family' }
   ] as const;
 
   // Profile form
@@ -759,7 +769,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private alertService: AlertService,
     public bluetoothWearablesService: BluetoothWearablesService,
-    private transitCheckService: TransitCheckService
+    private transitCheckService: TransitCheckService,
+    private fallDetectionService: FallDetectionService,
+    private routeAiService: RouteAiService
   ) {
     window.addEventListener('online', () => this.isOnline = true);
     window.addEventListener('offline', () => this.isOnline = false);
@@ -810,12 +822,34 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.transitSub = this.transitCheckService.velocityZeroAlert.subscribe(() => {
       this.triggerVelocityAlert();
     });
+
+    // Initialize Fall Detection Engine
+    this.fallDetectionService.startTracking();
+    this.fallDetectionService.fallDetected$.subscribe((detected: any) => {
+      if (detected) {
+        this.triggerAreYouOkayOverlay('Fall Detection AI: Hard impact and no movement detected. Are you okay?');
+      }
+    });
+
+    // Initialize Route AI Engine subscriptions
+    this.routeAiService.anomalyDetected$.subscribe((anomaly: any) => {
+      if (anomaly) {
+        this.triggerAreYouOkayOverlay(anomaly.message);
+      }
+    });
   }
 
   ngOnDestroy() {
     if (this.transitInterval) clearInterval(this.transitInterval);
     if (this.velocityAlertInterval) clearInterval(this.velocityAlertInterval);
+    if (this.overlayInterval) clearInterval(this.overlayInterval);
     if (this.transitSub) this.transitSub.unsubscribe();
+    this.fallDetectionService.stopTracking();
+    this.routeAiService.stopRouteMonitoring();
+  }
+
+  public switchTab(tab: 'overview' | 'contacts' | 'devices' | 'family') {
+    this.activeTab = tab as any;
   }
 
   // ================= TRANSIT & VELOCITY LOGIC =================
@@ -829,9 +863,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       () => {
         this.transitActive = true;
         this.startTransitTimer(this.transitMinutes * 60);
-        this.alertService.success(`Transit timer armed for ${this.transitMinutes} mins.`);
+        this.alertService.success(`Virtual Agent is now monitoring your transit to ${this.transitRoute}.`, 'Transit Active');
+        this.routeAiService.startRouteMonitoring(this.transitRoute);
       },
-      () => this.alertService.error('Failed to arm transit timer.')
+      (err: any) => this.alertService.error('Failed to start transit.')
     );
   }
 
@@ -840,8 +875,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       () => {
         this.transitActive = false;
         if (this.transitInterval) clearInterval(this.transitInterval);
-        this.alertService.success('Transit timer disarmed.');
-      }
+        this.alertService.success('Virtual Agent monitoring disabled.', 'Transit Stopped');
+        this.routeAiService.stopRouteMonitoring();
+      },
+      (err: any) => this.alertService.error('Failed to stop transit.')
     );
   }
 
@@ -879,14 +916,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private triggerVelocityAlert() {
+    this.triggerAreYouOkayOverlay('We detected you stopped moving.');
+  }
+
+  public triggerAreYouOkayOverlay(message: string) {
+    this.overlayMessage = message;
     this.showVelocityAlert = true;
     this.velocityAlertCountdown = 60;
-    if (this.velocityAlertInterval) clearInterval(this.velocityAlertInterval);
+    if (this.overlayInterval) clearInterval(this.overlayInterval);
     
-    this.velocityAlertInterval = setInterval(() => {
+    this.overlayInterval = setInterval(() => {
       this.velocityAlertCountdown--;
       if (this.velocityAlertCountdown <= 0) {
-        clearInterval(this.velocityAlertInterval);
+        clearInterval(this.overlayInterval);
         this.showVelocityAlert = false;
         // Trigger SOS
         this.triggerSOS();
@@ -896,7 +938,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   public dismissVelocityAlert() {
     this.showVelocityAlert = false;
-    if (this.velocityAlertInterval) clearInterval(this.velocityAlertInterval);
+    if (this.overlayInterval) clearInterval(this.overlayInterval);
+    this.fallDetectionService.dismissFall();
+    this.routeAiService.dismissAnomaly();
   }
 
   private async estimateCacheSize() {

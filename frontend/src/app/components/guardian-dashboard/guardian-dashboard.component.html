@@ -1,0 +1,42 @@
+<div class="guardian-container">
+  <div class="header">
+    <h2>🛡️ Guardian Dashboard</h2>
+    <p>Monitor your family's safety in real-time.</p>
+    
+    <div class="actions">
+      <button class="btn btn-primary" (click)="inviteMember('child')">Invite Child</button>
+      <button class="btn btn-secondary" (click)="inviteMember('parent')">Invite Parent</button>
+    </div>
+  </div>
+
+  <div *ngIf="isLoading" class="loading">Loading family status...</div>
+
+  <div *ngIf="!isLoading && dependents.length === 0" class="empty-state">
+    No family members linked yet. Invite someone to start monitoring their safety.
+  </div>
+
+  <div class="grid" *ngIf="dependents.length > 0">
+    <div class="card" *ngFor="let dep of dependents" [class.active]="dep.inTransit">
+      <div class="card-header">
+        <h3>{{ dep.name }} ({{ dep.age ? dep.age : 'N/A' }})</h3>
+        <span class="badge" [class.bg-success]="dep.inTransit" [class.bg-secondary]="!dep.inTransit">
+          {{ dep.inTransit ? 'In Transit' : 'Idle' }}
+        </span>
+      </div>
+      
+      <div class="card-body">
+        <div class="stat">
+          <i class="fas fa-battery-half"></i> Battery: 
+          <strong>{{ dep.battery !== null ? dep.battery + '%' : 'Unknown' }}</strong>
+        </div>
+        <div class="stat">
+          <i class="fas fa-running"></i> Speed: 
+          <strong>{{ dep.speed !== null ? dep.speed.toFixed(1) + ' m/s' : 'Unknown' }}</strong>
+        </div>
+        <div class="stat" *ngIf="dep.inTransit">
+          <i class="fas fa-shield-alt"></i> Safe Walk AI Active
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

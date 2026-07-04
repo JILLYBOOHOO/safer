@@ -1,0 +1,54 @@
+.guardian-container {
+  padding: 20px;
+  color: #fff;
+}
+.header {
+  margin-bottom: 20px;
+}
+.actions button {
+  margin-right: 10px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+.card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.card.active {
+  border-color: #28a745;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.card-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.badge {
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+.bg-success {
+  background: #28a745;
+}
+.bg-secondary {
+  background: #6c757d;
+}
+.stat {
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+.stat i {
+  width: 20px;
+  color: #adb5bd;
+}
